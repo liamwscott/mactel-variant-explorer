@@ -37,9 +37,60 @@ DEFAULT_REAL    <- file.path(app_dir, "data", "candidate_variants.csv")
 DEFAULT_EXAMPLE <- file.path(app_dir, "data", "example_variants.csv")
 startup_path    <- if (file.exists(DEFAULT_REAL)) DEFAULT_REAL else DEFAULT_EXAMPLE
 
-# Gene -> Tier lookup (bundled; gene symbols only, no participant data) --------
+# Gene info (Tier + descriptions; gene symbols only, no participant data) ------
+GENE_INFO_PATH <- file.path(app_dir, "data", "gene_info.tsv")
+GENE_INFO      <- load_gene_info(GENE_INFO_PATH)
+
+# Tier lookup: prefer the richer gene_info table; fall back to gene_tiers.tsv.
 TIER_PATH <- file.path(app_dir, "data", "gene_tiers.tsv")
-TIER_DF   <- load_gene_tiers(TIER_PATH)
+TIER_DF   <- if (!is.null(GENE_INFO)) {
+  dplyr::distinct(dplyr::select(GENE_INFO, SYMBOL, Tier))
+} else {
+  load_gene_tiers(TIER_PATH)
+}
+
+# Build a modalDialog describing a single gene from GENE_INFO.
+show_gene_modal <- function(symbol) {
+  if (is.null(symbol) || is.na(symbol) || symbol == "") return(invisible())
+  info <- if (!is.null(GENE_INFO)) GENE_INFO[GENE_INFO$SYMBOL == symbol, ] else NULL
+
+  if (is.null(info) || nrow(info) == 0) {
+    body <- tags$p(tags$em("No annotation available for this gene."))
+    tier <- NULL
+  } else {
+    info <- info[1, ]
+    fld <- function(label, value) {
+      if (is.null(value) || is.na(value) || value == "") return(NULL)
+      tags$p(tags$strong(paste0(label, ": ")), value)
+    }
+    body <- tagList(
+      fld("Ensembl ID",       info$Ensembl_ID),
+      fld("Chromosome",       info$Chromosome),
+      fld("Evidence category", info$Evidence_Category),
+      fld("Evidence detail",  info$Evidence_Detail),
+      if (!is.null(info$Gene_Description) && !is.na(info$Gene_Description) &&
+          info$Gene_Description != "") {
+        tagList(tags$hr(),
+                tags$p(tags$strong("Description")),
+                tags$p(info$Gene_Description))
+      }
+    )
+    tier <- info$Tier
+  }
+
+  showModal(modalDialog(
+    title = tagList(
+      tags$span(symbol, style = "font-weight:700;font-size:1.2rem;"),
+      if (!is.null(tier) && !is.na(tier))
+        tags$span(tier, class = "badge bg-secondary",
+                  style = "margin-left:8px;vertical-align:middle;")
+    ),
+    body,
+    easyClose = TRUE,
+    footer = modalButton("Close"),
+    size = "l"
+  ))
+}
 
 # Load + clean + annotate tier in one step.
 load_annotated <- function(path) {
