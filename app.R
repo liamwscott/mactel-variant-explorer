@@ -376,7 +376,7 @@ server <- function(input, output, session) {
   # ---- gene summary ---------------------------------------------------------
   gene_summary <- reactive({
     filtered() %>%
-      dplyr::group_by(SYMBOL) %>%
+      dplyr::group_by(SYMBOL, Tier) %>%
       dplyr::summarise(
         Variants    = dplyr::n(),
         Samples     = dplyr::n_distinct(family_id),
