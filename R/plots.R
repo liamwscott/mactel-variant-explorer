@@ -206,7 +206,8 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL) {
                           colour = "grey70", linewidth = 0.5) +
     ggplot2::geom_point(data = vv,
                         ggplot2::aes(x = aa, y = CADD,
-                                     colour = CLNSIG_clean, size = n_carriers)) +
+                                     colour = CLNSIG_clean, size = n_carriers,
+                                     text = tooltip, key = key)) +
     ggplot2::scale_colour_manual(values = COL_CLNSIG, drop = FALSE,
                                  name = "ClinVar") +
     ggplot2::scale_size_continuous(range = c(2.5, 7), name = "Samples",
