@@ -542,21 +542,93 @@ server <- function(input, output, session) {
                       backgroundColor = DT::styleEqual("HIGH", "#FDDEDE"))
   })
 
-  # ---- click a table row -> gene description modal --------------------------
-  # Row-selection indices from DT refer to the data in its original order,
-  # so we re-derive each table's data frame to map row -> gene symbol.
+  # ---- click a table row -> detail modal ------------------------------------
+  # Row-selection indices from DT refer to the data in its original order, so we
+  # re-derive each table's underlying data frame to map row -> variant / gene.
+  # Variant tables open a variant-level modal (detail + protein lollipop); the
+  # gene-summary table opens the gene-description modal.
+
+  modal_variant <- reactiveVal(NULL)   # one-row data frame of the clicked variant
+
+  show_variant_modal <- function(row) {
+    if (is.null(row) || nrow(row) == 0) return(invisible())
+    modal_variant(row)
+
+    fld <- function(label, value) {
+      if (is.null(value) || length(value) == 0 || is.na(value) || value == "")
+        return(NULL)
+      tags$span(tags$strong(paste0(label, ": ")), value,
+                style = "margin-right:18px;white-space:nowrap;")
+    }
+    tier <- if (!is.null(row$Tier)) row$Tier else NA
+    detail <- tags$div(
+      style = "line-height:1.9;",
+      fld("Variant", sprintf("%s:%s %s>%s",
+                             row$CHROM, row$POS, row$REF, row$ALT)),
+      fld("HGVSc", row$HGVSc),
+      fld("HGVSp", row$HGVSp_short),
+      tags$br(),
+      fld("Impact", as.character(row$IMPACT)),
+      fld("Type", as.character(row$TYPE)),
+      fld("CADD", if (!is.na(row$CADD)) round(row$CADD, 1) else NA),
+      fld("REVEL", if (!is.na(row$REVEL)) round(row$REVEL, 3) else NA),
+      fld("AlphaMissense", row$am_class),
+      fld("SpliceAI", if (!is.na(row$SpliceAI_max)) round(row$SpliceAI_max, 3) else NA),
+      tags$br(),
+      fld("ClinVar", as.character(row$CLNSIG_clean)),
+      fld("gnomAD AF", if (!is.na(row$gnomad_AF)) signif(row$gnomad_AF, 3) else NA),
+      fld("Inheritance", row$inheritance)
+    )
+
+    showModal(modalDialog(
+      title = tagList(
+        tags$span(row$SYMBOL, style = "font-weight:700;font-size:1.2rem;"),
+        if (!is.null(tier) && !is.na(tier))
+          tags$span(tier, class = "badge bg-secondary",
+                    style = "margin-left:8px;vertical-align:middle;")
+      ),
+      detail,
+      tags$hr(),
+      plotOutput("lollipop", height = 430),
+      helpText("Lollipops show every variant in this gene across the loaded ",
+               "data (height = CADD, colour = ClinVar, size = number of ",
+               "samples). Boxes are Pfam protein domains; the clicked ",
+               "variant is ringed in black."),
+      easyClose = TRUE, footer = modalButton("Close"), size = "xl"
+    ))
+  }
+
+  output$lollipop <- renderPlot({
+    row <- modal_variant(); req(row)
+    gdf <- dplyr::filter(raw(), SYMBOL == row$SYMBOL)
+    ddf <- if (!is.null(PROTEIN_DOMAINS))
+      dplyr::filter(PROTEIN_DOMAINS, SYMBOL == row$SYMBOL) else NULL
+    sel_key <- paste(row$CHROM, row$POS, row$REF, row$ALT)
+    p <- plot_variant_lollipop(gdf, ddf, row$SYMBOL, sel_key)
+    validate(need(!is.null(p),
+                  "No protein-coding (amino-acid) positions to plot for this gene."))
+    p
+  })
+
   observeEvent(input$variant_table_rows_selected, {
     sel <- input$variant_table_rows_selected
-    df  <- display_cols(filtered())
-    if (length(sel) && sel <= nrow(df)) show_gene_modal(df$Gene[sel])
+    df  <- filtered()
+    if (length(sel) && sel <= nrow(df)) show_variant_modal(df[sel, ])
     DT::dataTableProxy("variant_table") %>% DT::selectRows(NULL)
   })
 
   observeEvent(input$priority_table_rows_selected, {
     sel <- input$priority_table_rows_selected
     df  <- priority()
-    if (length(sel) && sel <= nrow(df)) show_gene_modal(df$SYMBOL[sel])
+    if (length(sel) && sel <= nrow(df)) show_variant_modal(df[sel, ])
     DT::dataTableProxy("priority_table") %>% DT::selectRows(NULL)
+  })
+
+  observeEvent(input$sample_table_rows_selected, {
+    sel <- input$sample_table_rows_selected
+    df  <- sample_data()
+    if (length(sel) && sel <= nrow(df)) show_variant_modal(df[sel, ])
+    DT::dataTableProxy("sample_table") %>% DT::selectRows(NULL)
   })
 
   observeEvent(input$gene_table_rows_selected, {
@@ -564,13 +636,6 @@ server <- function(input, output, session) {
     df  <- gene_summary()
     if (length(sel) && sel <= nrow(df)) show_gene_modal(df$SYMBOL[sel])
     DT::dataTableProxy("gene_table") %>% DT::selectRows(NULL)
-  })
-
-  observeEvent(input$sample_table_rows_selected, {
-    sel <- input$sample_table_rows_selected
-    df  <- sample_data()
-    if (length(sel) && sel <= nrow(df)) show_gene_modal(df$SYMBOL[sel])
-    DT::dataTableProxy("sample_table") %>% DT::selectRows(NULL)
   })
 
   # ---- downloads ------------------------------------------------------------
