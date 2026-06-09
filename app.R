@@ -97,21 +97,21 @@ ui <- page_sidebar(
     )
   ),
 
-  # value boxes
+  # value boxes (compact)
   layout_columns(
     fill = FALSE,
     value_box("Variants", textOutput("vb_variants"),
               showcase = bsicons::bs_icon("file-earmark-text"),
-              theme = "primary"),
+              theme = "primary", max_height = "92px"),
     value_box("Genes", textOutput("vb_genes"),
               showcase = bsicons::bs_icon("diagram-3"),
-              theme = "secondary"),
-    value_box("Families", textOutput("vb_families"),
+              theme = "secondary", max_height = "92px"),
+    value_box("Samples", textOutput("vb_samples"),
               showcase = bsicons::bs_icon("people"),
-              theme = "info"),
+              theme = "info", max_height = "92px"),
     value_box("ClinVar P/LP", textOutput("vb_plp"),
               showcase = bsicons::bs_icon("exclamation-triangle"),
-              theme = "danger")
+              theme = "danger", max_height = "92px")
   ),
 
   navset_card_tab(
