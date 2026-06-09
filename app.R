@@ -251,8 +251,6 @@ server <- function(input, output, session) {
       df <- dplyr::filter(df, as.character(TYPE) %in% input$type)
     if (length(input$clnsig) > 0)
       df <- dplyr::filter(df, as.character(CLNSIG_clean) %in% input$clnsig)
-    if (length(input$inheritance) > 0)
-      df <- dplyr::filter(df, inheritance %in% input$inheritance)
 
     df <- dplyr::filter(df, is.na(CADD) | CADD >= input$cadd)
     if (input$revel > 0)
