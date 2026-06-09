@@ -226,7 +226,8 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL) {
                             colour = "black", fill = NA) +
         ggplot2::geom_text(data = sel,
                            ggplot2::aes(x = aa, y = CADD, label = HGVSp_short),
-                           vjust = -1.4, fontface = "bold", size = 3.3)
+                           nudge_y = ymax * 0.09, vjust = 0,
+                           fontface = "bold", size = 3.3)
     }
   }
 
