@@ -104,10 +104,40 @@ load_annotated <- function(path) {
 # -----------------------------------------------------------------------------
 # UI
 # -----------------------------------------------------------------------------
+# App theme. Pagination is forced to the sidebar blue (flatly otherwise renders
+# the page-number controls in its default green) by compiling the override into
+# the theme stylesheet, which is more reliable than injecting <style> tags.
+app_theme <- bs_theme(version = 5, bootswatch = "flatly", primary = "#1F4E79") |>
+  bslib::bs_add_variables(
+    "pagination-color"                 = "#1F4E79",
+    "pagination-hover-color"           = "#ffffff",
+    "pagination-hover-bg"              = "#1F4E79",
+    "pagination-hover-border-color"    = "#1F4E79",
+    "pagination-active-bg"             = "#1F4E79",
+    "pagination-active-border-color"   = "#1F4E79",
+    .where = "declarations"
+  ) |>
+  bslib::bs_add_rules("
+    .dataTables_wrapper .dataTables_paginate .paginate_button { color: #1F4E79 !important; }
+    .dataTables_wrapper .dataTables_paginate .paginate_button.current,
+    .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover,
+    .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+      color: #ffffff !important;
+      background: #1F4E79 !important;
+      background-image: none !important;
+      border: 1px solid #1F4E79 !important;
+    }
+    .page-link { color: #1F4E79 !important; }
+    .page-item.active .page-link {
+      background-color: #1F4E79 !important;
+      border-color: #1F4E79 !important;
+      color: #ffffff !important;
+    }
+  ")
+
 ui <- page_sidebar(
   title = "MacTel Variant Explorer",
-  theme = bs_theme(version = 5, bootswatch = "flatly",
-                   primary = "#1F4E79"),
+  theme = app_theme,
 
   sidebar = sidebar(
     width = 320,
