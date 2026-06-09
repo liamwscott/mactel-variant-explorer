@@ -95,20 +95,20 @@ plot_inheritance <- function(df) {
 plot_top_genes <- function(df, n_top = 25) {
   d <- df %>%
     dplyr::group_by(SYMBOL) %>%
-    dplyr::summarise(n_families = dplyr::n_distinct(family_id),
+    dplyr::summarise(n_samples  = dplyr::n_distinct(family_id),
                      n_variants = dplyr::n(), .groups = "drop") %>%
-    dplyr::arrange(dplyr::desc(n_families)) %>%
+    dplyr::arrange(dplyr::desc(n_samples)) %>%
     dplyr::slice_head(n = n_top)
   if (nrow(d) == 0) return(NULL)
   d %>%
-    dplyr::mutate(SYMBOL = forcats::fct_reorder(SYMBOL, n_families)) %>%
-    ggplot2::ggplot(ggplot2::aes(n_families, SYMBOL)) +
+    dplyr::mutate(SYMBOL = forcats::fct_reorder(SYMBOL, n_samples)) %>%
+    ggplot2::ggplot(ggplot2::aes(n_samples, SYMBOL)) +
     ggplot2::geom_col(fill = "#4C72B0", colour = "white", width = 0.7) +
-    ggplot2::geom_text(ggplot2::aes(label = n_families), hjust = -0.2,
+    ggplot2::geom_text(ggplot2::aes(label = n_samples), hjust = -0.2,
                        size = 3, fontface = "bold") +
     ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
-    ggplot2::labs(title = sprintf("Top %d genes by families", n_top),
-                  x = "Families", y = NULL) +
+    ggplot2::labs(title = sprintf("Top %d genes by samples", n_top),
+                  x = "Samples", y = NULL) +
     theme_app()
 }
 
