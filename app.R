@@ -443,6 +443,59 @@ server <- function(input, output, session) {
                   options = list(pageLength = 25, scrollX = TRUE))
   })
 
+  # ---- sample explorer ------------------------------------------------------
+  sample_data <- reactive({
+    req(input$sample_pick)
+    filtered() %>%
+      dplyr::filter(family_id == input$sample_pick) %>%
+      dplyr::arrange(dplyr::desc(is_pathLP), dplyr::desc(CADD))
+  })
+
+  output$sb_variants <- renderText({
+    if (is.null(input$sample_pick) || input$sample_pick == "") "—"
+    else nrow(sample_data())
+  })
+  output$sb_genes <- renderText({
+    if (is.null(input$sample_pick) || input$sample_pick == "") "—"
+    else dplyr::n_distinct(sample_data()$SYMBOL)
+  })
+  output$sb_plp <- renderText({
+    if (is.null(input$sample_pick) || input$sample_pick == "") "—"
+    else sum(sample_data()$is_pathLP)
+  })
+
+  output$sample_header <- renderText({
+    if (is.null(input$sample_pick) || input$sample_pick == "")
+      "Select a sample to see its variants"
+    else sprintf("Variants in sample %s", input$sample_pick)
+  })
+
+  output$sample_table <- DT::renderDT({
+    validate(need(!is.null(input$sample_pick) && input$sample_pick != "",
+                  "Choose a sample from the dropdown."))
+    d <- sample_data()
+    validate(need(nrow(d) > 0,
+                  "This sample has no variants under the current filters."))
+    tbl <- d %>%
+      dplyr::transmute(
+        Gene = SYMBOL, Tier = Tier,
+        Variant = paste0(CHROM, ":", POS, " ", REF, ">", ALT),
+        HGVSc, HGVSp = HGVSp_short,
+        Impact = IMPACT, Type = TYPE, CADD = round(CADD, 1),
+        REVEL = round(REVEL, 3), AlphaMissense = am_class,
+        ClinVar = CLNSIG_clean, gnomAD_AF = signif(gnomad_AF, 3),
+        Inheritance = inheritance)
+    DT::datatable(tbl, rownames = FALSE,
+                  options = list(pageLength = 25, scrollX = TRUE)) %>%
+      DT::formatStyle("ClinVar",
+                      backgroundColor = DT::styleEqual(
+                        c("Pathogenic", "Pathogenic/Likely_pathogenic",
+                          "Likely_pathogenic"),
+                        c("#FDDEDE", "#F7D6F7", "#FDE8D8"))) %>%
+      DT::formatStyle("Impact",
+                      backgroundColor = DT::styleEqual("HIGH", "#FDDEDE"))
+  })
+
   # ---- downloads ------------------------------------------------------------
   output$dl_table <- downloadHandler(
     filename = function() sprintf("filtered_variants_%s.csv", Sys.Date()),
