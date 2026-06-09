@@ -41,6 +41,10 @@ startup_path    <- if (file.exists(DEFAULT_REAL)) DEFAULT_REAL else DEFAULT_EXAM
 GENE_INFO_PATH <- file.path(app_dir, "data", "gene_info.tsv")
 GENE_INFO      <- load_gene_info(GENE_INFO_PATH)
 
+# Pfam protein domains, pre-fetched offline (gene symbols only, no patient data).
+PROTEIN_DOMAINS <- load_protein_domains(file.path(app_dir, "data",
+                                                  "protein_domains.tsv"))
+
 # Tier lookup: prefer the richer gene_info table; fall back to gene_tiers.tsv.
 TIER_PATH <- file.path(app_dir, "data", "gene_tiers.tsv")
 TIER_DF   <- if (!is.null(GENE_INFO)) {
