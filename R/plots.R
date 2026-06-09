@@ -135,3 +135,104 @@ plot_score_scatter <- function(df) {
                   x = "CADD", y = "REVEL") +
     theme_app()
 }
+
+# --- Protein lollipop --------------------------------------------------------
+#' Parse a 1-based amino-acid position out of an HGVSp string (e.g.
+#' "p.Arg123Cys" -> 123). Returns NA when no residue number is present.
+aa_position <- function(hgvsp) {
+  suppressWarnings(as.integer(stringr::str_extract(hgvsp, "\\d+")))
+}
+
+#' Protein lollipop for one gene.
+#'   gene_df  : all variant rows for the gene (needs HGVSp_short, CADD,
+#'              CLNSIG_clean, CHROM, POS, REF, ALT, family_id)
+#'   dom_df   : Pfam rows for the gene (SYMBOL, Protein_Length, Pfam, Domain,
+#'              Start, End) from load_protein_domains(); may be empty/NULL
+#'   gene     : gene symbol (for the title)
+#'   sel_key  : "CHROM POS REF ALT" of the clicked variant to highlight (or NULL)
+#' Lollipop height = CADD, colour = ClinVar class, size = #samples carrying it.
+#' Pfam domains are drawn as boxes on the protein backbone beneath the stems.
+plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL) {
+  v <- gene_df %>%
+    dplyr::mutate(
+      aa  = aa_position(HGVSp_short),
+      key = paste(CHROM, POS, REF, ALT)
+    ) %>%
+    dplyr::filter(!is.na(aa), !is.na(CADD))
+  if (nrow(v) == 0) return(NULL)
+
+  # one lollipop per distinct variant; size by number of carriers
+  vv <- v %>%
+    dplyr::group_by(key, aa, CADD, CLNSIG_clean, HGVSp_short) %>%
+    dplyr::summarise(n_carriers = dplyr::n_distinct(family_id),
+                     .groups = "drop")
+
+  prot_len <- if (!is.null(dom_df) && nrow(dom_df) > 0)
+    suppressWarnings(max(dom_df$Protein_Length, na.rm = TRUE)) else NA_real_
+  if (!is.finite(prot_len)) prot_len <- max(vv$aa, na.rm = TRUE)
+
+  ymax <- max(vv$CADD, na.rm = TRUE, 1)
+  band <- ymax * 0.10                     # height of the backbone/domain band
+
+  doms <- if (!is.null(dom_df)) dplyr::filter(dom_df, !is.na(Start), !is.na(End)) else dom_df[0, ]
+
+  p <- ggplot2::ggplot() +
+    # protein backbone
+    ggplot2::annotate("segment", x = 1, xend = prot_len,
+                      y = -band / 2, yend = -band / 2,
+                      colour = "grey55", linewidth = 1.1)
+
+  if (!is.null(doms) && nrow(doms) > 0) {
+    p <- p +
+      ggplot2::geom_rect(data = doms,
+                         ggplot2::aes(xmin = Start, xmax = End,
+                                      ymin = -band, ymax = 0, fill = Domain),
+                         colour = "grey30", alpha = 0.9) +
+      ggplot2::geom_text(data = doms,
+                         ggplot2::aes(x = (Start + End) / 2, y = -band / 2,
+                                      label = Pfam),
+                         size = 2.5, colour = "grey15") +
+      ggplot2::scale_fill_brewer(palette = "Set2", name = "Pfam domain")
+  }
+
+  p <- p +
+    # stems + heads
+    ggplot2::geom_segment(data = vv,
+                          ggplot2::aes(x = aa, xend = aa, y = 0, yend = CADD),
+                          colour = "grey70", linewidth = 0.5) +
+    ggplot2::geom_point(data = vv,
+                        ggplot2::aes(x = aa, y = CADD,
+                                     colour = CLNSIG_clean, size = n_carriers)) +
+    ggplot2::scale_colour_manual(values = COL_CLNSIG, drop = FALSE,
+                                 name = "ClinVar") +
+    ggplot2::scale_size_continuous(range = c(2.5, 7), name = "Samples",
+                                   breaks = scales::breaks_pretty(4)) +
+    ggplot2::geom_hline(yintercept = 20, linetype = "dashed",
+                        colour = "red", linewidth = 0.6)
+
+  # highlight the clicked variant
+  if (!is.null(sel_key)) {
+    sel <- dplyr::filter(vv, key == sel_key)
+    if (nrow(sel) > 0) {
+      p <- p +
+        ggplot2::geom_point(data = sel,
+                            ggplot2::aes(x = aa, y = CADD),
+                            shape = 21, size = 8, stroke = 1.5,
+                            colour = "black", fill = NA) +
+        ggplot2::geom_text(data = sel,
+                           ggplot2::aes(x = aa, y = CADD, label = HGVSp_short),
+                           vjust = -1.4, fontface = "bold", size = 3.3)
+    }
+  }
+
+  p +
+    ggplot2::scale_x_continuous(limits = c(1, prot_len),
+                                expand = ggplot2::expansion(mult = c(0.01, 0.03))) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.02, 0.18))) +
+    ggplot2::labs(
+      title    = sprintf("%s protein lollipop", gene),
+      subtitle = sprintf("%g aa | height = CADD (dashed = 20) | colour = ClinVar | size = #samples",
+                         prot_len),
+      x = "Amino-acid position", y = "CADD") +
+    theme_app()
+}
