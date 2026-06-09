@@ -95,6 +95,20 @@ load_gene_tiers <- function(path) {
     dplyr::distinct()
 }
 
+#' Load the gene-information table (TSV with columns Gene_Symbol, Tier,
+#' Ensembl_ID, Chromosome, Evidence_Category, Evidence_Detail, Gene_Description).
+#' Returns a tibble keyed by SYMBOL, or NULL if the file is absent.
+load_gene_info <- function(path) {
+  if (is.null(path) || !file.exists(path)) return(NULL)
+  g <- readr::read_tsv(path, show_col_types = FALSE)
+  names(g)[names(g) == "Gene_Symbol"] <- "SYMBOL"
+  g %>%
+    dplyr::mutate(
+      Tier = paste0("Tier ", gsub("[^0-9]", "", as.character(Tier)))
+    ) %>%
+    dplyr::distinct(SYMBOL, .keep_all = TRUE)
+}
+
 #' Add a Tier column to a variant dataframe.
 #' Uses tier_df if supplied; otherwise falls back to the hardcoded Tier 1 list.
 #' Genes absent from the lookup become "Unassigned".
