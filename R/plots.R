@@ -165,7 +165,11 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL) {
   vv <- v %>%
     dplyr::group_by(key, aa, CADD, CLNSIG_clean, HGVSp_short) %>%
     dplyr::summarise(n_carriers = dplyr::n_distinct(family_id),
-                     .groups = "drop")
+                     .groups = "drop") %>%
+    dplyr::mutate(tooltip = sprintf(
+      "%s\nposition %d\nCADD %.1f\nClinVar: %s\nsamples: %d",
+      ifelse(is.na(HGVSp_short), "(no HGVSp)", HGVSp_short),
+      aa, CADD, as.character(CLNSIG_clean), n_carriers))
 
   prot_len <- if (!is.null(dom_df) && nrow(dom_df) > 0)
     suppressWarnings(max(dom_df$Protein_Length, na.rm = TRUE)) else NA_real_
