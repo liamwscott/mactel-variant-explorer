@@ -37,6 +37,15 @@ DEFAULT_REAL    <- file.path(app_dir, "data", "candidate_variants.csv")
 DEFAULT_EXAMPLE <- file.path(app_dir, "data", "example_variants.csv")
 startup_path    <- if (file.exists(DEFAULT_REAL)) DEFAULT_REAL else DEFAULT_EXAMPLE
 
+# Gene -> Tier lookup (bundled; gene symbols only, no participant data) --------
+TIER_PATH <- file.path(app_dir, "data", "gene_tiers.tsv")
+TIER_DF   <- load_gene_tiers(TIER_PATH)
+
+# Load + clean + annotate tier in one step.
+load_annotated <- function(path) {
+  annotate_tier(load_variants(path), TIER_DF)
+}
+
 # -----------------------------------------------------------------------------
 # UI
 # -----------------------------------------------------------------------------
