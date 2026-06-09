@@ -223,14 +223,14 @@ ui <- page_sidebar(
       "Overview",
       layout_columns(
         col_widths = c(4, 4, 4),
-        card(card_header("VEP impact"), plotOutput("p_impact", height = 280)),
-        card(card_header("Variant type"), plotOutput("p_type", height = 280)),
-        card(card_header("Inheritance"), plotOutput("p_inherit", height = 280))
+        card(card_header("VEP impact"), plotOutput("p_impact", height = 340)),
+        card(card_header("Variant type"), plotOutput("p_type", height = 340)),
+        card(card_header("Inheritance"), plotOutput("p_inherit", height = 340))
       ),
       layout_columns(
         col_widths = c(6, 6),
-        card(card_header("CADD distribution"), plotOutput("p_cadd", height = 320)),
-        card(card_header("ClinVar classification"), plotOutput("p_clnsig", height = 320))
+        card(card_header("CADD distribution"), plotOutput("p_cadd", height = 380)),
+        card(card_header("ClinVar classification"), plotOutput("p_clnsig", height = 380))
       ),
       card(card_header("Top genes by number of samples"),
            plotOutput("p_genes", height = 500))
