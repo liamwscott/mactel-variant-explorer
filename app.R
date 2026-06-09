@@ -273,6 +273,8 @@ server <- function(input, output, session) {
                              choices = tiers, selected = tiers, inline = TRUE)
     updateSelectizeInput(session, "genes",
                          choices = sort(unique(df$SYMBOL)), server = TRUE)
+    updateSelectizeInput(session, "sample_pick",
+                         choices = sort(unique(df$family_id)), server = TRUE)
     mx <- ceiling(max(df$CADD, na.rm = TRUE))
     updateSliderInput(session, "cadd", max = mx, value = 0)
     updateSliderInput(session, "priority_cadd", max = mx)
