@@ -204,6 +204,9 @@ ui <- page_sidebar(
       card(
         card_header(
           "Filtered variants",
+          tags$span(bsicons::bs_icon("info-circle"),
+                    " click a row for the gene description",
+                    class = "text-muted small ms-2"),
           downloadButton("dl_table", "Download CSV",
                          class = "btn-sm btn-primary float-end")
         ),
