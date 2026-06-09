@@ -109,6 +109,22 @@ load_gene_info <- function(path) {
     dplyr::distinct(SYMBOL, .keep_all = TRUE)
 }
 
+#' Load the bundled Pfam protein-domain table (TSV produced offline by
+#' scripts/fetch_protein_domains.py). Columns: Gene_Symbol, UniProt,
+#' Protein_Length, Pfam, Domain, Start, End. Returns a tibble keyed by SYMBOL
+#' with numeric Start/End/Protein_Length, or NULL if the file is absent.
+load_protein_domains <- function(path) {
+  if (is.null(path) || !file.exists(path)) return(NULL)
+  d <- readr::read_tsv(path, show_col_types = FALSE)
+  names(d)[names(d) == "Gene_Symbol"] <- "SYMBOL"
+  d %>%
+    dplyr::mutate(
+      Protein_Length = suppressWarnings(as.numeric(Protein_Length)),
+      Start          = suppressWarnings(as.numeric(Start)),
+      End            = suppressWarnings(as.numeric(End))
+    )
+}
+
 #' Add a Tier column to a variant dataframe.
 #' Uses tier_df if supplied; otherwise falls back to the hardcoded Tier 1 list.
 #' Genes absent from the lookup become "Unassigned".
