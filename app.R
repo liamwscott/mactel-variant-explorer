@@ -454,6 +454,7 @@ server <- function(input, output, session) {
         ClinVar = CLNSIG_clean, Flags = n_flags,
         `Why prioritised` = why_prioritised)
     DT::datatable(tbl, filter = "top", rownames = FALSE,
+                  selection = "single",
                   options = list(pageLength = 15, scrollX = TRUE)) %>%
       DT::formatStyle("Flags", fontWeight = "bold",
                       background = DT::styleColorBar(c(0, 3), "#9ec5fe")) %>%
