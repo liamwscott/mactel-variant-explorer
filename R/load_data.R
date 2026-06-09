@@ -62,6 +62,8 @@ clean_variants <- function(df) {
       CLNSIG_clean = factor(CLNSIG_clean, levels = CLNSIG_LEVELS),
       inheritance  = ifelse(is.na(inheritance) | inheritance == "",
                             "unknown", inheritance),
+      # Strip the trailing "RLA" suffix from sample IDs for display
+      family_id    = stringr::str_remove(as.character(family_id), "RLA$"),
       HGVSp_short  = stringr::str_extract(HGVSp, "p\\..*"),
       is_pathLP    = CLNSIG_clean %in% c("Pathogenic", "Likely_pathogenic",
                                          "Pathogenic/Likely_pathogenic")
