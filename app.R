@@ -414,13 +414,13 @@ server <- function(input, output, session) {
   output$dl_priority <- downloadHandler(
     filename = function() sprintf("priority_variants_%s.csv", Sys.Date()),
     content  = function(file) {
-      d <- filtered() %>%
-        dplyr::arrange(dplyr::desc(n_flags), dplyr::desc(CADD)) %>%
-        dplyr::select(SYMBOL, CHROM, POS, REF, ALT, HGVSc, HGVSp_short,
-                      IMPACT, TYPE, CADD, REVEL, am_class, SpliceAI_max,
-                      CLNSIG_clean, gnomad_AF, inheritance,
-                      flag_clinvar, flag_high, flag_cadd, n_flags,
-                      why_prioritised)
+      d <- priority() %>%
+        dplyr::select(SYMBOL, Tier, family_id, CHROM, POS, REF, ALT,
+                      HGVSc, HGVSp_short, IMPACT, TYPE, CADD, REVEL,
+                      am_class, SpliceAI_max, CLNSIG_clean, gnomad_AF,
+                      inheritance, flag_clinvar, flag_high, flag_cadd,
+                      n_flags, why_prioritised) %>%
+        dplyr::rename(Sample = family_id)
       readr::write_csv(d, file)
     }
   )
