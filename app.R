@@ -580,6 +580,19 @@ server <- function(input, output, session) {
       fld("Inheritance", row$inheritance)
     )
 
+    # gene description (from the bundled gene-info table), shown above the plot
+    ginfo <- if (!is.null(GENE_INFO)) GENE_INFO[GENE_INFO$SYMBOL == row$SYMBOL, ] else NULL
+    gene_desc <- if (!is.null(ginfo) && nrow(ginfo) > 0 &&
+                     !is.na(ginfo$Gene_Description[1]) &&
+                     ginfo$Gene_Description[1] != "") {
+      tagList(
+        tags$p(tags$strong("Gene description"),
+               style = "margin-bottom:2px;"),
+        tags$p(ginfo$Gene_Description[1], class = "text-muted",
+               style = "font-size:0.9rem;")
+      )
+    } else NULL
+
     showModal(modalDialog(
       title = tagList(
         tags$span(row$SYMBOL, style = "font-weight:700;font-size:1.2rem;"),
@@ -589,6 +602,7 @@ server <- function(input, output, session) {
       ),
       detail,
       tags$hr(),
+      gene_desc,
       plotOutput("lollipop", height = 430),
       helpText("Lollipops show every variant in this gene across the loaded ",
                "data (height = CADD, colour = ClinVar, size = number of ",
