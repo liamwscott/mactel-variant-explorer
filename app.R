@@ -233,8 +233,6 @@ server <- function(input, output, session) {
     updateCheckboxGroupInput(session, "impact", selected = IMPACT_LEVELS)
     updateCheckboxGroupInput(session, "type", selected = TYPE_LEVELS)
     updateCheckboxGroupInput(session, "clnsig", selected = CLNSIG_LEVELS)
-    inh <- sort(unique(df$inheritance))
-    updateCheckboxGroupInput(session, "inheritance", selected = inh)
     updateSliderInput(session, "cadd", value = 0)
     updateSliderInput(session, "revel", value = 0)
     updateSliderInput(session, "gnomad", value = 0)
