@@ -360,7 +360,7 @@ server <- function(input, output, session) {
       dplyr::group_by(SYMBOL) %>%
       dplyr::summarise(
         Variants    = dplyr::n(),
-        Families    = dplyr::n_distinct(family_id),
+        Samples     = dplyr::n_distinct(family_id),
         `P/LP`      = sum(is_pathLP),
         `HIGH`      = sum(IMPACT == "HIGH"),
         CADD_max    = round(max(CADD, na.rm = TRUE), 1),
@@ -368,7 +368,7 @@ server <- function(input, output, session) {
         Types       = paste(sort(unique(as.character(TYPE))), collapse = "/"),
         .groups = "drop") %>%
       dplyr::mutate(REVEL_max = ifelse(is.infinite(REVEL_max), NA, REVEL_max)) %>%
-      dplyr::arrange(dplyr::desc(Families), dplyr::desc(CADD_max))
+      dplyr::arrange(dplyr::desc(Samples), dplyr::desc(CADD_max))
   })
 
   output$gene_table <- DT::renderDT({
