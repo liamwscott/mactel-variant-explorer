@@ -281,7 +281,7 @@ server <- function(input, output, session) {
   # ---- value boxes ----------------------------------------------------------
   output$vb_variants <- renderText(format(nrow(filtered()), big.mark = ","))
   output$vb_genes    <- renderText(dplyr::n_distinct(filtered()$SYMBOL))
-  output$vb_families <- renderText(dplyr::n_distinct(filtered()$family_id))
+  output$vb_samples  <- renderText(dplyr::n_distinct(filtered()$family_id))
   output$vb_plp      <- renderText(sum(filtered()$is_pathLP))
 
   # ---- overview plots -------------------------------------------------------
