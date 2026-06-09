@@ -215,6 +215,9 @@ ui <- page_sidebar(
 
   navset_card_tab(
     id = "main_tabs",
+    # Don't let the tab body squeeze every plot into one viewport — let cards
+    # keep their real heights and the page scroll instead.
+    fillable = FALSE,
 
     nav_panel(
       "Overview",
