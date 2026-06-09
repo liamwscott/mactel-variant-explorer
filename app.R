@@ -487,6 +487,7 @@ server <- function(input, output, session) {
 
   output$gene_table <- DT::renderDT({
     DT::datatable(gene_summary(), rownames = FALSE, filter = "top",
+                  selection = "single",
                   options = list(pageLength = 25, scrollX = TRUE))
   })
 
