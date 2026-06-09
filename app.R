@@ -231,6 +231,9 @@ ui <- page_sidebar(
       card(
         card_header(
           "Priority variants (flag-filtered)",
+          tags$span(bsicons::bs_icon("info-circle"),
+                    " click a row for variant detail + protein lollipop",
+                    class = "text-muted small ms-2"),
           downloadButton("dl_priority", "Download CSV",
                          class = "btn-sm btn-primary float-end")
         ),
