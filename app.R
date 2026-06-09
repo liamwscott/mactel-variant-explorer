@@ -72,6 +72,8 @@ ui <- page_sidebar(
 
       accordion_panel(
         "Core filters", icon = bsicons::bs_icon("funnel"),
+        checkboxGroupInput("tier", "Tier",
+                           choices = NULL, inline = TRUE),
         selectizeInput("genes", "Gene(s)", choices = NULL, multiple = TRUE,
                        options = list(placeholder = "All genes")),
         checkboxGroupInput("impact", "VEP impact",
