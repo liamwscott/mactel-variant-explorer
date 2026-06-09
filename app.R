@@ -293,10 +293,16 @@ server <- function(input, output, session) {
                                       CLNSIG_clean, CADD, IMPACT,
                                       input$priority_cadd)
       )
-    if (input$min_flags > 0)
-      df <- dplyr::filter(df, n_flags >= input$min_flags)
-
     df
+  })
+
+  # ---- priority subset (Priority variants tab) ------------------------------
+  # Flags are computed in filtered(); here we keep only rows meeting at least
+  # the chosen number of flags (min 1, so this is never the full table).
+  priority <- reactive({
+    filtered() %>%
+      dplyr::filter(n_flags >= input$min_flags) %>%
+      dplyr::arrange(dplyr::desc(n_flags), dplyr::desc(CADD))
   })
 
   # ---- value boxes ----------------------------------------------------------
