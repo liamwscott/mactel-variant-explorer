@@ -234,7 +234,7 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL) {
   p +
     ggplot2::scale_x_continuous(limits = c(1, prot_len),
                                 expand = ggplot2::expansion(mult = c(0.01, 0.03))) +
-    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.02, 0.18))) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.02, 0.24))) +
     ggplot2::labs(
       title    = sprintf("%s protein lollipop", gene),
       subtitle = sprintf("%g aa | height = CADD (dashed = 20) | colour = ClinVar | size = #samples",
