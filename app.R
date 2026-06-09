@@ -99,9 +99,12 @@ ui <- page_sidebar(
 
       accordion_panel(
         "Priority flags", icon = bsicons::bs_icon("star"),
-        helpText("Keep only variants meeting the chosen number of flags."),
-        sliderInput("min_flags", "Min. priority flags", min = 0, max = 3,
-                    value = 0, step = 1),
+        helpText("Used by the 'Priority variants' tab only. A flag is set ",
+                 "when a variant is ClinVar P/LP, HIGH impact, or CADD ≥ ",
+                 "the threshold below. The tab keeps variants meeting at ",
+                 "least the chosen number of flags."),
+        sliderInput("min_flags", "Min. priority flags", min = 1, max = 3,
+                    value = 1, step = 1),
         sliderInput("priority_cadd", "Flag: CADD ≥", min = 0, max = 60,
                     value = 20, step = 1)
       )
