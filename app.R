@@ -194,6 +194,40 @@ ui <- page_sidebar(
         ),
         DT::DTOutput("gene_table")
       )
+    ),
+
+    nav_panel(
+      "Sample explorer",
+      layout_sidebar(
+        sidebar = sidebar(
+          width = 280, position = "left",
+          selectizeInput("sample_pick", "Select a sample",
+                         choices = NULL, multiple = FALSE,
+                         options = list(placeholder = "Start typing a sample ID…")),
+          helpText("Shows every variant carried by the chosen sample, ",
+                   "respecting the global filters in the left panel.")
+        ),
+        layout_columns(
+          fill = FALSE,
+          value_box("Variants", textOutput("sb_variants"),
+                    showcase = bsicons::bs_icon("file-earmark-text"),
+                    theme = "primary", max_height = "92px"),
+          value_box("Genes", textOutput("sb_genes"),
+                    showcase = bsicons::bs_icon("diagram-3"),
+                    theme = "secondary", max_height = "92px"),
+          value_box("ClinVar P/LP", textOutput("sb_plp"),
+                    showcase = bsicons::bs_icon("exclamation-triangle"),
+                    theme = "danger", max_height = "92px")
+        ),
+        card(
+          card_header(
+            textOutput("sample_header"),
+            downloadButton("dl_sample", "Download CSV",
+                           class = "btn-sm btn-primary float-end")
+          ),
+          DT::DTOutput("sample_table")
+        )
+      )
     )
   )
 )
