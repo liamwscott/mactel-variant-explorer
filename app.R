@@ -259,6 +259,8 @@ server <- function(input, output, session) {
   filtered <- reactive({
     df <- raw(); req(df)
 
+    if (length(input$tier) > 0)
+      df <- dplyr::filter(df, Tier %in% input$tier)
     if (length(input$genes) > 0)
       df <- dplyr::filter(df, SYMBOL %in% input$genes)
     if (length(input$impact) > 0)
