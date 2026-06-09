@@ -196,24 +196,6 @@ ui <- page_sidebar(
     )
   ),
 
-  # Recolour DataTables pagination (default flatly green) to the sidebar blue.
-  tags$head(tags$style(HTML("
-    .dataTables_wrapper .dataTables_paginate .paginate_button { color: #1F4E79 !important; }
-    .dataTables_wrapper .dataTables_paginate .paginate_button.current,
-    .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover,
-    .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
-      color: #fff !important;
-      background: #1F4E79 !important;
-      border: 1px solid #1F4E79 !important;
-    }
-    .page-link { color: #1F4E79 !important; }
-    .page-item.active .page-link {
-      background-color: #1F4E79 !important;
-      border-color: #1F4E79 !important;
-      color: #fff !important;
-    }
-  "))),
-
   # value boxes (compact)
   layout_columns(
     fill = FALSE,
