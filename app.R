@@ -231,6 +231,9 @@ server <- function(input, output, session) {
   # ---- populate dynamic filter choices when data changes --------------------
   observeEvent(raw(), {
     df <- raw()
+    tiers <- sort(unique(df$Tier))
+    updateCheckboxGroupInput(session, "tier",
+                             choices = tiers, selected = tiers, inline = TRUE)
     updateSelectizeInput(session, "genes",
                          choices = sort(unique(df$SYMBOL)), server = TRUE)
     mx <- ceiling(max(df$CADD, na.rm = TRUE))
