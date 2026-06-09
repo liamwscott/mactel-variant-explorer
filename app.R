@@ -521,6 +521,7 @@ server <- function(input, output, session) {
         ClinVar = CLNSIG_clean, gnomAD_AF = signif(gnomad_AF, 3),
         Inheritance = inheritance)
     DT::datatable(tbl, rownames = FALSE,
+                  selection = "single",
                   options = list(pageLength = 25, scrollX = TRUE)) %>%
       DT::formatStyle("ClinVar",
                       backgroundColor = DT::styleEqual(
