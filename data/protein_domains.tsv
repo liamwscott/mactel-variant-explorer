@@ -1,0 +1,256 @@
+Gene_Symbol	UniProt	Protein_Length	Pfam	Domain	Start	End
+PHGDH	O43175	533	PF00389	D-isomer specific 2-hydroxyacid dehydrogenase, catalytic domain	9	111
+PHGDH	O43175	533	PF02826	D-isomer specific 2-hydroxyacid dehydrogenase, NAD binding domain	112	285
+PHGDH	O43175	533	PF00389	D-isomer specific 2-hydroxyacid dehydrogenase, catalytic domain	286	317
+PHGDH	O43175	533	PF19304	D-3-phosphoglycerate dehydrogenase intervening domain	330	409
+SPTLC1	O15269	473	PF00155	Aminotransferase class I and II	99	464
+SPTLC2	O15270	562	PF00155	Aminotransferase class I and II	169	528
+ATMIN	O43313	823	PF24757	ASCIZ first and second C2H2 zinc finger domains	83	112
+ATMIN	O43313	823	PF24757	ASCIZ first and second C2H2 zinc finger domains	130	163
+ATMIN	O43313	823	PF24759	ASCIZ third C2HC zinc finger domain	164	188
+ATMIN	O43313	823	PF24761	ASCIZ forth C2H2 zinc finger domain	190	220
+BMP4	P12644	408	PF00688	TGF-beta propeptide	52	275
+BMP4	P12644	408	PF00019	Transforming growth factor beta like domain	307	407
+C16orf87	Q6PH81	154	PF10571	Uncharacterised protein family UPF0547	14	38
+CCT6A	P40227	531	PF00118	TCP-1/cpn60 chaperonin family	30	524
+CD14	P08571	375	PF13516	Leucine Rich repeat	196	214
+CDPF1	Q6NVV7	123	PF10170	CDPF1	13	106
+CERS4	Q9HA82	394	PF00046	Homeodomain	82	126
+CERS4	Q9HA82	394	PF03798	TLC domain	132	325
+CHCHD2	Q9Y6H1	151	PF06747	CHCH domain	114	146
+CLEC18A	A5D8T8	446	PF00188	Cysteine-rich secretory protein family	52	182
+CLEC18A	A5D8T8	446	PF00059	Lectin C-type domain	317	434
+CLEC18C	Q8NCF0	446	PF00188	Cysteine-rich secretory protein family	52	182
+CLEC18C	Q8NCF0	446	PF00059	Lectin C-type domain	317	434
+CMC2	Q9NRP2	79	PF08583	Cytochrome c oxidase biogenesis protein Cmc1 like	1	70
+COG4	Q9H9E3	785	PF20663	Conserved oligomeric Golgi complex subunit 4, N-terminal	76	170
+COG4	Q9H9E3	785	PF08318	COG4 transport protein, middle alpha-helical bundle	217	497
+COG4	Q9H9E3	785	PF20662	Conserved oligomeric Golgi complex subunit 4, C-terminal	544	767
+CPS1	P31327	1500	PF00988	Carbamoyl-phosphate synthase small chain, CPSase domain	48	183
+CPS1	P31327	1500	PF00117	Glutamine amidotransferase class-I	222	395
+CPS1	P31327	1500	PF25596	Carbamoyl phosphate synthase preATP-grasp domain	423	542
+CPS1	P31327	1500	PF02786	Carbamoyl-phosphate synthase L chain, ATP binding domain	546	749
+CPS1	P31327	1500	PF02787	Carbamoyl-phosphate synthetase large chain, oligomerisation domain	841	920
+CPS1	P31327	1500	PF25596	Carbamoyl phosphate synthase preATP-grasp domain	973	1084
+CPS1	P31327	1500	PF02786	Carbamoyl-phosphate synthase L chain, ATP binding domain	1088	1290
+CPS1	P31327	1500	PF02142	MGS-like domain	1375	1465
+DHRS7	Q9Y394	339	PF00106	short chain dehydrogenase	52	245
+DNA2	P51530	1060	PF08696	DNA replication factor Dna2	74	281
+DNA2	P51530	1060	PF21123	Dna2 Rift barrel domain	469	566
+DNA2	P51530	1060	PF13086	AAA domain	626	725
+DNA2	P51530	1060	PF13086	AAA domain	730	797
+DNA2	P51530	1060	PF13087	AAA domain	805	1016
+DNAJC24	Q6P3W2	149	PF00226	DnaJ domain	11	79
+DNAJC24	Q6P3W2	149	PF05207	CSL zinc finger	96	146
+DYNC1I2	Q13409	638	PF11540	Cytoplasmic dynein 1 intermediate chain 2	133	163
+DYNC1I2	Q13409	638	PF00400	WD domain, G-beta repeat	480	509
+EIF2B4	Q9UI10	523	PF01008	Initiation factor 2 subunit family	219	509
+FLT1	P17948	1338	PF22854	VEGFR1-3, N-terminal Ig-like domain	31	137
+FLT1	P17948	1338	PF21339	Vascular endothelial growth factor receptor 1-like, Ig-like domain	143	224
+FLT1	P17948	1338	PF00047	Immunoglobulin domain	239	321
+FLT1	P17948	1338	PF07679	Immunoglobulin I-set domain	350	407
+FLT1	P17948	1338	PF22971	VEGFR-1-like, immunoglobulin-like domain	425	554
+FLT1	P17948	1338	PF13927	Immunoglobulin domain	568	640
+FLT1	P17948	1338	PF07679	Immunoglobulin I-set domain	662	748
+FLT1	P17948	1338	PF17988	VEGFR-2 Transmembrane domain	753	787
+FLT1	P17948	1338	PF07714	Protein tyrosine and serine/threonine kinase	827	1154
+GCSH	P23434	173	PF01597	Glycine cleavage H-protein	51	170
+GMEB1	Q9Y692	573	PF01342	SAND domain	91	164
+GMEB1	Q9Y692	573	PF25892	Transcription regulator spe-44-like domain	251	361
+GPT2	Q8TD30	523	PF00155	Aminotransferase class I and II	111	510
+GTF3C2	Q8WUA4	911	PF00400	WD domain, G-beta repeat	607	642
+H6PD	O95479	791	PF00479	Glucose-6-phosphate dehydrogenase, NAD binding domain	29	211
+H6PD	O95479	791	PF02781	Glucose-6-phosphate dehydrogenase, C-terminal domain	217	507
+H6PD	O95479	791	PF01182	Glucosamine-6-phosphate isomerases/6-phosphogluconolactonase	560	782
+HNRNPH3	P31942	346	PF28441	RRM domain	18	97
+HNRNPH3	P31942	346	PF28441	RRM domain	197	270
+IFT172	Q9UG01	1749	PF00400	WD domain, G-beta repeat	16	44
+IFT172	Q9UG01	1749	PF23387	IFT80/172/WDR35/WDR19 TPR domain	627	756
+IFT172	Q9UG01	1749	PF24762	IF140/IFT172 TPR domain	1032	1192
+IRAK1BP1	Q5VVH5	260	PF04402	Protein of unknown function (DUF541)	53	248
+JMJD6	Q6NYC1	403	PF02373	JmjC domain, hydroxylase	174	288
+KLF15	Q9UIH9	416	PF00096	Zinc finger, C2H2 type	321	345
+KLF15	Q9UIH9	416	PF00096	Zinc finger, C2H2 type	351	375
+KLF15	Q9UIH9	416	PF00096	Zinc finger, C2H2 type	381	403
+KRTCAP3	Q53RY4	240	PF12304	Beta-casein like protein	19	203
+LGI3	Q8N145	548	PF13855	Leucine rich repeat	113	172
+LGI3	Q8N145	548	PF03736	EPTP domain	222	263
+LGI3	Q8N145	548	PF03736	EPTP domain	270	309
+LGI3	Q8N145	548	PF03736	EPTP domain	314	359
+LGI3	Q8N145	548	PF03736	EPTP domain	363	405
+LGI3	Q8N145	548	PF03736	EPTP domain	410	452
+LGI3	Q8N145	548	PF03736	EPTP domain	455	496
+LGI3	Q8N145	548	PF03736	EPTP domain	501	541
+LRRC2	Q9BYS8	371	PF27680	FAM240	9	57
+LRRC2	Q9BYS8	371	PF12799	Leucine Rich repeats (2 copies)	167	200
+LRRC2	Q9BYS8	371	PF13855	Leucine rich repeat	237	295
+MRPL33	O75394	65	PF00471	Ribosomal protein L33	17	60
+MXRA7	P84157	204	PF25473	MXRA7 helical domain	142	203
+MYLK3	Q32MK0	819	PF00069	Protein kinase domain	518	770
+NIPSNAP1	Q9BPW8	284	PF07978	NIPSNAP	185	282
+NPLOC4	Q8TAT6	608	PF11543	Nuclear pore localisation protein NPL4	4	78
+NPLOC4	Q8TAT6	608	PF05020	NPL4 family, putative zinc binding region	106	245
+NPLOC4	Q8TAT6	608	PF05021	NPL4 family	249	555
+NRBF2	Q96F24	287	PF17169	MIT domain of nuclear receptor-binding factor 2	4	86
+NRBF2	Q96F24	287	PF08961	Nuclear receptor-binding factor 2, autophagy regulator	89	284
+NRBP1	Q9UHY1	535	PF07714	Protein tyrosine and serine/threonine kinase	106	321
+NUDT18	Q6ZVK8	323	PF00293	NUDIX domain	45	155
+PCNX4	Q63HM2	1172	PF05041	Pecanex protein (C-terminus)	1011	1164
+PCYT1A	P49585	367	PF01467	Cytidylyltransferase-like	80	208
+PDPR	Q8NCN5	879	PF01266	FAD dependent oxidoreductase	45	402
+PDPR	Q8NCN5	879	PF16350	FAD dependent oxidoreductase central domain	405	460
+PDPR	Q8NCN5	879	PF01571	GCVT N-terminal domain	462	745
+PDPR	Q8NCN5	879	PF08669	Glycine cleavage T-protein C-terminal barrel domain	765	853
+PHIP	Q8WWQ0	1821	PF25437	BRWD1-like, N-terminal domain	5	86
+PHIP	Q8WWQ0	1821	PF00400	WD domain, G-beta repeat	179	210
+PHIP	Q8WWQ0	1821	PF00400	WD domain, G-beta repeat	215	252
+PHIP	Q8WWQ0	1821	PF00400	WD domain, G-beta repeat	259	298
+PHIP	Q8WWQ0	1821	PF00400	WD domain, G-beta repeat	357	392
+PHIP	Q8WWQ0	1821	PF00400	WD domain, G-beta repeat	456	495
+PHIP	Q8WWQ0	1821	PF25313	BRWD/PHIP ancillary domain-like domain	954	1125
+PHIP	Q8WWQ0	1821	PF00439	Bromodomain	1166	1250
+PHIP	Q8WWQ0	1821	PF00439	Bromodomain	1325	1406
+PHKG1	Q16816	387	PF00069	Protein kinase domain	20	288
+PKDREJ	Q9NTG1	2253	PF02010	REJ domain	243	711
+PKDREJ	Q9NTG1	2253	PF01477	PLAT/LH2 domain	1232	1343
+PKDREJ	Q9NTG1	2253	PF20519	Polycystin domain	1750	1954
+PKDREJ	Q9NTG1	2253	PF08016	Polycystin cation channel	1957	2178
+PPM1G	O15355	546	PF00481	Protein phosphatase 2C	27	107
+PPM1G	O15355	546	PF00481	Protein phosphatase 2C	287	489
+REEP3	Q6NUK4	255	PF03134	TB2/DP1, HVA22 family	19	95
+REEP4	Q9H6H4	257	PF03134	TB2/DP1, HVA22 family	19	94
+SATB2	Q9UPW6	733	PF16534	Ubiquitin-like oligomerisation domain of SATB	59	156
+SATB2	Q9UPW6	733	PF16557	CUT1-like DNA-binding domain of SATB	163	233
+SATB2	Q9UPW6	733	PF02376	CUT domain	360	434
+SATB2	Q9UPW6	733	PF02376	CUT domain	481	556
+SATB2	Q9UPW6	733	PF00046	Homeodomain	616	671
+SHCBP1	Q8NEM2	672	PF23762	SHCBP N-terminal domain	80	308
+SHCBP1	Q8NEM2	672	PF13229	Right handed beta helix region	432	546
+SIX6	O95475	246	PF16878	Transcriptional regulator, SIX1, N-terminal SD domain	9	123
+SIX6	O95475	246	PF00046	Homeodomain	133	184
+SLC25A12	O75746	678	PF00153	Mitochondrial carrier protein	327	419
+SLC25A12	O75746	678	PF00153	Mitochondrial carrier protein	425	511
+SLC25A12	O75746	678	PF00153	Mitochondrial carrier protein	520	606
+SLC25A16	P16260	332	PF00153	Mitochondrial carrier protein	35	124
+SLC25A16	P16260	332	PF00153	Mitochondrial carrier protein	131	216
+SLC25A16	P16260	332	PF00153	Mitochondrial carrier protein	240	330
+SLC4A1AP	Q9BWU0	742	PF00498	FHA domain	136	212
+SLC4A1AP	Q9BWU0	742	PF00035	Double-stranded RNA binding motif	316	384
+SLC51A	Q86UW1	340	PF03619	Organic solute transporter Ostalpha	55	321
+SLC6A9	P48067	706	PF00209	Sodium:neurotransmitter symporter family	100	634
+SNX17	Q15036	470	PF00787	PX domain	24	103
+SNX17	Q15036	470	PF21273	Sortin nexin 17/27/31, FERM domain, F1 lobe	117	206
+SNX17	Q15036	470	PF21271	Sortin nexin 17/31, FERM domain, F2 lobe	207	267
+SNX17	Q15036	470	PF18116	Sorting Nexin 17 FERM C-terminal domain	270	384
+SPPL2C	Q8IUH8	684	PF02225	PA domain	88	160
+SPPL2C	Q8IUH8	684	PF04258	Signal peptide peptidase	249	529
+STH	Q8IWL8	128				
+SUMF2	Q8NBJ7	301	PF03781	Sulfatase-modifying factor enzyme 1-like domain	27	291
+TMEM161B	Q8NDZ6	487	PF10268	Predicted transmembrane protein 161AB	3	485
+TRMU	O75648	421	PF03054	tRNA methyl transferase HUP domain	6	226
+TRMU	O75648	421	PF20259	tRNA methyl transferase PRC-barrel domain	230	292
+TRMU	O75648	421	PF20258	Aminomethyltransferase beta-barrel domain	303	383
+TSPAN10	Q9H1Z9	355	PF00335	Tetraspanin family	76	316
+VAMP2	P63027	116	PF00957	Synaptobrevin	31	111
+VPS35	Q96QK1	796	PF03635	Vacuolar protein sorting-associated protein 35	15	752
+WNT3	P56703	355	PF00110	wnt family	48	355
+WWP2	O00308	870	PF00397	WW domain	302	331
+WWP2	O00308	870	PF00397	WW domain	332	361
+WWP2	O00308	870	PF00397	WW domain	407	435
+WWP2	O00308	870	PF00397	WW domain	446	475
+WWP2	O00308	870	PF00632	HECT-domain (ubiquitin-transferase)	566	868
+YTHDF2	Q9Y5A9	579	PF04146	YT521-B-like domain	411	544
+ZNF605	Q86T29	641	PF01352	KRAB box	6	45
+ZNF605	Q86T29	641	PF00096	Zinc finger, C2H2 type	169	191
+ZNF605	Q86T29	641	PF00096	Zinc finger, C2H2 type	197	219
+ZNF605	Q86T29	641	PF00096	Zinc finger, C2H2 type	227	247
+ZNF605	Q86T29	641	PF00096	Zinc finger, C2H2 type	255	275
+ZNF605	Q86T29	641	PF00096	Zinc finger, C2H2 type	281	303
+ZNF605	Q86T29	641	PF00096	Zinc finger, C2H2 type	309	331
+ZNF605	Q86T29	641	PF00096	Zinc finger, C2H2 type	339	359
+ZNF605	Q86T29	641	PF00096	Zinc finger, C2H2 type	365	387
+ZNF605	Q86T29	641	PF00096	Zinc finger, C2H2 type	393	415
+ZNF605	Q86T29	641	PF00096	Zinc finger, C2H2 type	449	471
+ZNF605	Q86T29	641	PF00096	Zinc finger, C2H2 type	477	499
+ZNF605	Q86T29	641	PF00096	Zinc finger, C2H2 type	505	527
+ZNF605	Q86T29	641	PF00096	Zinc finger, C2H2 type	533	555
+ZNF605	Q86T29	641	PF00096	Zinc finger, C2H2 type	589	611
+ZNF605	Q86T29	641	PF00096	Zinc finger, C2H2 type	619	639
+ZNF713	Q8N859	443	PF01352	KRAB box	31	72
+ZNF713	Q8N859	443	PF00096	Zinc finger, C2H2 type	286	308
+ZNF713	Q8N859	443	PF00096	Zinc finger, C2H2 type	314	336
+ZNF713	Q8N859	443	PF00096	Zinc finger, C2H2 type	342	364
+ZNF713	Q8N859	443	PF13465	Zinc-finger double domain	384	409
+HMGCS2	P54868	508	PF01154	Hydroxymethylglutaryl-coenzyme A synthase N terminal	50	223
+HMGCS2	P54868	508	PF08540	Hydroxymethylglutaryl-coenzyme A synthase C terminal	225	506
+JMJD1C	Q15652	2540	PF22989	Domain of unknown function (DUF7030)	8	71
+JMJD1C	Q15652	2540	PF22988	Lysine-specific demethylase 3B, PWWP domain	81	179
+JMJD1C	Q15652	2540	PF22987	Lysine-specific demethylase 3B, tudor domain	181	255
+JMJD1C	Q15652	2540	PF02373	JmjC domain, hydroxylase	2383	2481
+MRPS17	Q9Y2R5	130	PF00366	Ribosomal protein S17	15	82
+NIPSNAP2	O75323	286	PF07978	NIPSNAP	187	284
+DNAJA2	O60884	412	PF00226	DnaJ domain	9	67
+DNAJA2	O60884	412	PF01556	DnaJ C terminal domain	118	142
+DNAJA2	O60884	412	PF00684	DnaJ central domain	143	209
+DNAJA2	O60884	412	PF01556	DnaJ C terminal domain	210	338
+EOMES	O95936	686	PF00907	T-box	270	456
+EOMES	O95936	686	PF16176	T-box transcription factor-associated	463	684
+GCKR	Q14397	625	PF22645	Glucokinase regulatory protein N-terminal SIS domain	85	195
+GCKR	Q14397	625	PF22198	Glucokinase regulatory protein, second SIS domain	307	496
+GCKR	Q14397	625	PF20741	C-terminal lid domain of glucokinase regulatory protein	502	601
+ORMDL2	Q53FV1	153	PF04061	ORMDL family	11	146
+PPM1A	P35813	382	PF00481	Protein phosphatase 2C	23	284
+PPM1A	P35813	382	PF07830	Protein serine/threonine phosphatase 2C, C-terminal domain	285	363
+PSPH	P78330	225	PF00702	haloacid dehalogenase-like hydrolase	15	187
+RDH5	Q92781	318	PF00106	short chain dehydrogenase	31	214
+SCRG1	O75711	98	PF15224	Scrapie-responsive protein 1	22	97
+SLC16A8	O95907	504	PF07690	Major Facilitator Superfamily	27	396
+SLC1A4	P43007	532	PF00375	Sodium:dicarboxylate symporter family	44	476
+SLC4A7	Q9Y6M7	1214	PF07565	Band 3 cytoplasmic domain	110	247
+SLC4A7	Q9Y6M7	1214	PF07565	Band 3 cytoplasmic domain	403	531
+SLC4A7	Q9Y6M7	1214	PF00955	HCO3- transporter integral membrane domain	580	1139
+SLC6A20	Q9NP91	592	PF00209	Sodium:neurotransmitter symporter family	5	579
+TNS1	Q9HBL0	1839	PF00130	Phorbol esters/diacylglycerol binding domain (C1 domain)	21	68
+TNS1	Q9HBL0	1839	PF10409	C2 domain of PTEN tumour-suppressor protein	304	430
+TNS1	Q9HBL0	1839	PF00017	SH2 domain	1567	1661
+TNS1	Q9HBL0	1839	PF08416	Phosphotyrosine-binding domain	1702	1836
+TTC39B	Q5VTQ0	682	PF10300	Iml2/Tetratricopeptide repeat protein 39	141	598
+TTC39B	Q5VTQ0	682	PF13181	Tetratricopeptide repeat	629	652
+VLDLR	P98155	873	PF00057	Low-density lipoprotein receptor domain class A	32	67
+VLDLR	P98155	873	PF00057	Low-density lipoprotein receptor domain class A	70	108
+VLDLR	P98155	873	PF00057	Low-density lipoprotein receptor domain class A	111	149
+VLDLR	P98155	873	PF00057	Low-density lipoprotein receptor domain class A	153	188
+VLDLR	P98155	873	PF00057	Low-density lipoprotein receptor domain class A	192	229
+VLDLR	P98155	873	PF00057	Low-density lipoprotein receptor domain class A	238	273
+VLDLR	P98155	873	PF00057	Low-density lipoprotein receptor domain class A	276	312
+VLDLR	P98155	873	PF00057	Low-density lipoprotein receptor domain class A	317	355
+VLDLR	P98155	873	PF14670	Coagulation Factor Xa inhibitory site	360	394
+VLDLR	P98155	873	PF07645	Calcium-binding EGF domain	396	431
+VLDLR	P98155	873	PF00058	Low-density lipoprotein receptor repeat class B	481	522
+VLDLR	P98155	873	PF00058	Low-density lipoprotein receptor repeat class B	526	565
+VLDLR	P98155	873	PF00058	Low-density lipoprotein receptor repeat class B	568	608
+VLDLR	P98155	873	PF00058	Low-density lipoprotein receptor repeat class B	613	653
+VLDLR	P98155	873	PF00058	Low-density lipoprotein receptor repeat class B	655	695
+ZCCHC2	Q9C0B9	1178	PF25479	RNA-binding protein vts1-like domain	96	140
+ZCCHC2	Q9C0B9	1178	PF26034	SMAUG-like PHAT domain	145	290
+ZCCHC2	Q9C0B9	1178	PF00098	Zinc knuckle	1132	1148
+AMT	P48728	403	PF01571	GCVT N-terminal domain	38	293
+AMT	P48728	403	PF08669	Glycine cleavage T-protein C-terminal barrel domain	318	395
+CERS2	Q96G23	380	PF00046	Homeodomain	73	126
+CERS2	Q96G23	380	PF03798	TLC domain	132	325
+CERS3	Q8IU89	383	PF00046	Homeodomain	81	125
+CERS3	Q8IU89	383	PF03798	TLC domain	131	324
+CYP2U1	Q7Z449	544	PF00067	Cytochrome P450	105	540
+DLD	P09622	509	PF07992	Pyridine nucleotide-disulphide oxidoreductase	43	370
+DLD	P09622	509	PF02852	Pyridine nucleotide-disulphide oxidoreductase, dimerisation domain	389	497
+FADS3	Q9Y5Q0	445	PF00173	Cytochrome b5-like Heme/Steroid binding domain	25	97
+FADS3	Q9Y5Q0	445	PF00487	Fatty acid desaturase	158	416
+GLDC	P23378	1020	PF02347	Glycine cleavage system P-protein	65	488
+GLDC	P23378	1020	PF01212	Beta-eliminating lyase	586	729
+GLDC	P23378	1020	PF21478	Glycine dehydrogenase, C-terminal domain	829	950
+GPT1	P24298	496	PF00155	Aminotransferase class I and II	85	483
+ORMDL1	Q9P0S3	153	PF04061	ORMDL family	11	146
+ORMDL3	Q8N138	153	PF04061	ORMDL family	11	146
+PSAT1	Q9Y617	370	PF00266	Aminotransferase class-V	8	357
+SCARB1	Q8WTV0	552	PF01130	CD36 family	16	462
+SLC1A5	Q15758	541	PF00375	Sodium:dicarboxylate symporter family	54	483
