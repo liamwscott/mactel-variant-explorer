@@ -70,9 +70,7 @@ ui <- page_sidebar(
                            inline = TRUE),
         checkboxGroupInput("type", "Variant type",
                            choices = TYPE_LEVELS, selected = TYPE_LEVELS,
-                           inline = TRUE),
-        checkboxGroupInput("inheritance", "Inheritance",
-                           choices = NULL, inline = TRUE)
+                           inline = TRUE)
       ),
 
       accordion_panel(
