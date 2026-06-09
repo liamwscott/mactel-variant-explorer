@@ -549,19 +549,19 @@ server <- function(input, output, session) {
   # gene-summary table opens the gene-description modal.
 
   modal_variant <- reactiveVal(NULL)   # one-row data frame of the clicked variant
+  modal_gene     <- reactiveVal(NULL)   # gene whose lollipop is on screen
 
-  show_variant_modal <- function(row) {
-    if (is.null(row) || nrow(row) == 0) return(invisible())
-    modal_variant(row)
-
+  # The variant detail block re-renders whenever the selected variant changes,
+  # so clicking a different point in the lollipop updates the text at the top.
+  output$variant_detail <- renderUI({
+    row <- modal_variant(); req(row)
     fld <- function(label, value) {
       if (is.null(value) || length(value) == 0 || is.na(value) || value == "")
         return(NULL)
       tags$span(tags$strong(paste0(label, ": ")), value,
                 style = "margin-right:18px;white-space:nowrap;")
     }
-    tier <- if (!is.null(row$Tier)) row$Tier else NA
-    detail <- tags$div(
+    tags$div(
       style = "line-height:1.9;",
       fld("Variant", sprintf("%s:%s %s>%s",
                              row$CHROM, row$POS, row$REF, row$ALT)),
@@ -579,6 +579,14 @@ server <- function(input, output, session) {
       fld("gnomAD AF", if (!is.na(row$gnomad_AF)) signif(row$gnomad_AF, 3) else NA),
       fld("Inheritance", row$inheritance)
     )
+  })
+
+  show_variant_modal <- function(row) {
+    if (is.null(row) || nrow(row) == 0) return(invisible())
+    modal_variant(row)
+    modal_gene(row$SYMBOL)
+
+    tier <- if (!is.null(row$Tier)) row$Tier else NA
 
     # gene description (from the bundled gene-info table), shown above the plot
     ginfo <- if (!is.null(GENE_INFO)) GENE_INFO[GENE_INFO$SYMBOL == row$SYMBOL, ] else NULL
@@ -600,28 +608,44 @@ server <- function(input, output, session) {
           tags$span(tier, class = "badge bg-secondary",
                     style = "margin-left:8px;vertical-align:middle;")
       ),
-      detail,
+      uiOutput("variant_detail"),
       tags$hr(),
       gene_desc,
-      plotOutput("lollipop", height = 430),
+      plotly::plotlyOutput("lollipop", height = 430),
       helpText("Lollipops show every variant in this gene across the loaded ",
                "data (height = CADD, colour = ClinVar, size = number of ",
-               "samples). Boxes are Pfam protein domains; the clicked ",
-               "variant is ringed in black."),
+               "samples). Boxes are Pfam protein domains; the selected ",
+               "variant is ringed. Hover a point for detail, or click one to ",
+               "switch the summary above to that variant."),
       easyClose = TRUE, footer = modalButton("Close"), size = "xl"
     ))
   }
 
-  output$lollipop <- renderPlot({
+  output$lollipop <- plotly::renderPlotly({
     row <- modal_variant(); req(row)
-    gdf <- dplyr::filter(raw(), SYMBOL == row$SYMBOL)
+    gene <- row$SYMBOL
+    gdf <- dplyr::filter(raw(), SYMBOL == gene)
     ddf <- if (!is.null(PROTEIN_DOMAINS))
-      dplyr::filter(PROTEIN_DOMAINS, SYMBOL == row$SYMBOL) else NULL
+      dplyr::filter(PROTEIN_DOMAINS, SYMBOL == gene) else NULL
     sel_key <- paste(row$CHROM, row$POS, row$REF, row$ALT)
-    p <- plot_variant_lollipop(gdf, ddf, row$SYMBOL, sel_key)
+    p <- plot_variant_lollipop(gdf, ddf, gene, sel_key)
     validate(need(!is.null(p),
                   "No protein-coding (amino-acid) positions to plot for this gene."))
-    p
+    plotly::ggplotly(p, tooltip = "text", source = "lollipop") %>%
+      plotly::event_register("plotly_click")
+  })
+
+  # Clicking a point in the lollipop switches the active variant.
+  observeEvent(plotly::event_data("plotly_click", source = "lollipop"), {
+    ed   <- plotly::event_data("plotly_click", source = "lollipop")
+    gene <- modal_gene()
+    req(ed, gene)
+    key <- ed$key
+    if (is.null(key) || length(key) == 0 || is.na(key[[1]])) return()
+    hit <- raw() %>%
+      dplyr::filter(SYMBOL == gene,
+                    paste(CHROM, POS, REF, ALT) == key[[1]])
+    if (nrow(hit) > 0) modal_variant(hit[1, ])
   })
 
   observeEvent(input$variant_table_rows_selected, {
