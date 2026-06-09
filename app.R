@@ -243,6 +243,9 @@ ui <- page_sidebar(
       card(
         card_header(
           "Per-gene summary",
+          tags$span(bsicons::bs_icon("info-circle"),
+                    " click a row for the gene description",
+                    class = "text-muted small ms-2"),
           downloadButton("dl_genes", "Download CSV",
                          class = "btn-sm btn-primary float-end")
         ),
