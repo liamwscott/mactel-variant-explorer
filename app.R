@@ -130,7 +130,7 @@ ui <- page_sidebar(
         card(card_header("CADD distribution"), plotOutput("p_cadd", height = 320)),
         card(card_header("ClinVar classification"), plotOutput("p_clnsig", height = 320))
       ),
-      card(card_header("Top genes by number of families"),
+      card(card_header("Top genes by number of samples"),
            plotOutput("p_genes", height = 500))
     ),
 
