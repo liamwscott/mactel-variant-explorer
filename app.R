@@ -363,22 +363,24 @@ server <- function(input, output, session) {
 
   # ---- priority table & plot ------------------------------------------------
   output$priority_table <- DT::renderDT({
-    d <- filtered() %>% dplyr::arrange(dplyr::desc(n_flags), dplyr::desc(CADD))
-    tbl <- d %>%
+    tbl <- priority() %>%
       dplyr::transmute(
-        Gene = SYMBOL, HGVSc, HGVSp = HGVSp_short,
+        Gene = SYMBOL, Tier = Tier, Sample = family_id,
+        HGVSc, HGVSp = HGVSp_short,
         Impact = IMPACT, Type = TYPE, CADD = round(CADD, 1),
         ClinVar = CLNSIG_clean, Flags = n_flags,
         `Why prioritised` = why_prioritised)
-    DT::datatable(tbl, rownames = FALSE,
+    DT::datatable(tbl, filter = "top", rownames = FALSE,
                   options = list(pageLength = 15, scrollX = TRUE)) %>%
       DT::formatStyle("Flags", fontWeight = "bold",
-                      background = DT::styleColorBar(c(0, 3), "#9ec5fe"))
+                      background = DT::styleColorBar(c(0, 3), "#9ec5fe")) %>%
+      DT::formatStyle("Impact",
+                      backgroundColor = DT::styleEqual("HIGH", "#FDDEDE"))
   })
 
   output$p_priority_genes <- renderPlot({
-    d <- filtered()
-    validate(need(nrow(d) > 0, "No variants match the current filters."))
+    d <- priority()
+    validate(need(nrow(d) > 0, "No variants meet the chosen number of flags."))
     plot_top_genes(d, 20)
   })
 
