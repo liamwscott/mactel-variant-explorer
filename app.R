@@ -138,6 +138,9 @@ app_theme <- bs_theme(version = 5, bootswatch = "flatly", primary = "#1F4E79") |
 ui <- page_sidebar(
   title = "MacTel Variant Explorer",
   theme = app_theme,
+  # Non-fillable so cards keep their real heights and the page scrolls,
+  # rather than squeezing every plot into a single viewport.
+  fillable = FALSE,
 
   sidebar = sidebar(
     width = 320,
