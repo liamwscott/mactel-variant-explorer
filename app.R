@@ -222,9 +222,6 @@ server <- function(input, output, session) {
     df <- raw()
     updateSelectizeInput(session, "genes",
                          choices = sort(unique(df$SYMBOL)), server = TRUE)
-    inh <- sort(unique(df$inheritance))
-    updateCheckboxGroupInput(session, "inheritance",
-                             choices = inh, selected = inh, inline = TRUE)
     mx <- ceiling(max(df$CADD, na.rm = TRUE))
     updateSliderInput(session, "cadd", max = mx, value = 0)
     updateSliderInput(session, "priority_cadd", max = mx)
