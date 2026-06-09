@@ -323,6 +323,7 @@ server <- function(input, output, session) {
     df %>%
       dplyr::transmute(
         Gene = SYMBOL,
+        Tier = Tier,
         Variant = paste0(CHROM, ":", POS, " ", REF, ">", ALT),
         HGVSc, HGVSp = HGVSp_short,
         Impact = IMPACT, Type = TYPE,
