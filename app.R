@@ -133,6 +133,23 @@ app_theme <- bs_theme(version = 5, bootswatch = "flatly", primary = "#1F4E79") |
       border-color: #1F4E79 !important;
       color: #ffffff !important;
     }
+
+    /* Tighter tab bar — smaller text/padding so all tabs fit on one row. */
+    .nav-tabs .nav-link {
+      padding: 0.3rem 0.65rem !important;
+      font-size: 0.82rem !important;
+    }
+
+    /* Smaller value-box icons and text in the header. */
+    .bslib-value-box .value-box-title { font-size: 0.78rem !important; margin-bottom: 0 !important; }
+    .bslib-value-box .value-box-value { font-size: 1.05rem !important; }
+    .bslib-value-box .value-box-showcase { padding: 0.25rem 0.5rem !important; }
+    .bslib-value-box .value-box-showcase svg,
+    .bslib-value-box .value-box-showcase .bi {
+      width: 1.4rem !important;
+      height: 1.4rem !important;
+      font-size: 1.4rem !important;
+    }
   ")
 
 ui <- page_sidebar(
