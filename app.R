@@ -532,6 +532,37 @@ server <- function(input, output, session) {
                       backgroundColor = DT::styleEqual("HIGH", "#FDDEDE"))
   })
 
+  # ---- click a table row -> gene description modal --------------------------
+  # Row-selection indices from DT refer to the data in its original order,
+  # so we re-derive each table's data frame to map row -> gene symbol.
+  observeEvent(input$variant_table_rows_selected, {
+    sel <- input$variant_table_rows_selected
+    df  <- display_cols(filtered())
+    if (length(sel) && sel <= nrow(df)) show_gene_modal(df$Gene[sel])
+    DT::dataTableProxy("variant_table") %>% DT::selectRows(NULL)
+  })
+
+  observeEvent(input$priority_table_rows_selected, {
+    sel <- input$priority_table_rows_selected
+    df  <- priority()
+    if (length(sel) && sel <= nrow(df)) show_gene_modal(df$SYMBOL[sel])
+    DT::dataTableProxy("priority_table") %>% DT::selectRows(NULL)
+  })
+
+  observeEvent(input$gene_table_rows_selected, {
+    sel <- input$gene_table_rows_selected
+    df  <- gene_summary()
+    if (length(sel) && sel <= nrow(df)) show_gene_modal(df$SYMBOL[sel])
+    DT::dataTableProxy("gene_table") %>% DT::selectRows(NULL)
+  })
+
+  observeEvent(input$sample_table_rows_selected, {
+    sel <- input$sample_table_rows_selected
+    df  <- sample_data()
+    if (length(sel) && sel <= nrow(df)) show_gene_modal(df$SYMBOL[sel])
+    DT::dataTableProxy("sample_table") %>% DT::selectRows(NULL)
+  })
+
   # ---- downloads ------------------------------------------------------------
   output$dl_table <- downloadHandler(
     filename = function() sprintf("filtered_variants_%s.csv", Sys.Date()),
