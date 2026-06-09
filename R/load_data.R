@@ -75,3 +75,33 @@ load_variants <- function(path) {
   df <- readr::read_csv(path, show_col_types = FALSE, guess_max = 5000)
   clean_variants(df)
 }
+
+# Known monogenic MacTel genes — fallback Tier 1 if no lookup file is present.
+TIER1_FALLBACK <- c("PHGDH", "SPTLC1", "SPTLC2")
+
+#' Load a gene -> tier lookup (TSV with columns Gene_Symbol, Tier).
+#' Returns a tibble with SYMBOL + Tier ("Tier 1"/"Tier 2"), or NULL if absent.
+load_gene_tiers <- function(path) {
+  if (is.null(path) || !file.exists(path)) return(NULL)
+  t <- readr::read_tsv(path, show_col_types = FALSE)
+  names(t)[1:2] <- c("SYMBOL", "Tier")
+  t %>%
+    dplyr::mutate(
+      Tier = paste0("Tier ", gsub("[^0-9]", "", as.character(Tier)))
+    ) %>%
+    dplyr::select(SYMBOL, Tier) %>%
+    dplyr::distinct()
+}
+
+#' Add a Tier column to a variant dataframe.
+#' Uses tier_df if supplied; otherwise falls back to the hardcoded Tier 1 list.
+#' Genes absent from the lookup become "Unassigned".
+annotate_tier <- function(df, tier_df = NULL) {
+  if (is.null(tier_df)) {
+    df$Tier <- ifelse(df$SYMBOL %in% TIER1_FALLBACK, "Tier 1", "Tier 2")
+    return(df)
+  }
+  df %>%
+    dplyr::left_join(tier_df, by = "SYMBOL") %>%
+    dplyr::mutate(Tier = dplyr::if_else(is.na(Tier), "Unassigned", Tier))
+}
