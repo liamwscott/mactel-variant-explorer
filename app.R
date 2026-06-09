@@ -439,19 +439,6 @@ server <- function(input, output, session) {
       dplyr::arrange(dplyr::desc(is_pathLP), dplyr::desc(CADD))
   })
 
-  output$sb_variants <- renderText({
-    if (is.null(input$sample_pick) || input$sample_pick == "") "—"
-    else nrow(sample_data())
-  })
-  output$sb_genes <- renderText({
-    if (is.null(input$sample_pick) || input$sample_pick == "") "—"
-    else dplyr::n_distinct(sample_data()$SYMBOL)
-  })
-  output$sb_plp <- renderText({
-    if (is.null(input$sample_pick) || input$sample_pick == "") "—"
-    else sum(sample_data()$is_pathLP)
-  })
-
   output$sample_header <- renderText({
     if (is.null(input$sample_pick) || input$sample_pick == "")
       "Select a sample to see its variants"
