@@ -274,6 +274,9 @@ ui <- page_sidebar(
         card(
           card_header(
             textOutput("sample_header"),
+            tags$span(bsicons::bs_icon("info-circle"),
+                      " click a row for variant detail + protein lollipop",
+                      class = "text-muted small ms-2"),
             downloadButton("dl_sample", "Download CSV",
                            class = "btn-sm btn-primary float-end")
           ),
