@@ -333,6 +333,7 @@ server <- function(input, output, session) {
       dplyr::transmute(
         Gene = SYMBOL,
         Tier = Tier,
+        Sample = family_id,
         Variant = paste0(CHROM, ":", POS, " ", REF, ">", ALT),
         HGVSc, HGVSp = HGVSp_short,
         Impact = IMPACT, Type = TYPE,
