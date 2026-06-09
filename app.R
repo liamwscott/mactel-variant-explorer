@@ -205,7 +205,7 @@ server <- function(input, output, session) {
   src_label <- reactiveVal("")
 
   observe({
-    df <- load_variants(startup_path)
+    df <- load_annotated(startup_path)
     raw(df)
     src_label(sprintf("%s  (%d variants)",
                       basename(startup_path), nrow(df)))
@@ -213,7 +213,7 @@ server <- function(input, output, session) {
 
   observeEvent(input$upload, {
     req(input$upload)
-    df <- tryCatch(load_variants(input$upload$datapath),
+    df <- tryCatch(load_annotated(input$upload$datapath),
                    error = function(e) {
                      showNotification(paste("Could not load file:", e$message),
                                       type = "error", duration = 8)
