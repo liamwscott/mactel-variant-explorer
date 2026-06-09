@@ -243,6 +243,8 @@ server <- function(input, output, session) {
 
   observeEvent(input$reset_filters, {
     df <- raw(); req(df)
+    updateCheckboxGroupInput(session, "tier",
+                             selected = sort(unique(df$Tier)))
     updateSelectizeInput(session, "genes", selected = character(0))
     updateCheckboxGroupInput(session, "impact", selected = IMPACT_LEVELS)
     updateCheckboxGroupInput(session, "type", selected = TYPE_LEVELS)
