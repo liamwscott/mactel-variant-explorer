@@ -193,9 +193,9 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL) {
                                       ymin = -band, ymax = 0, fill = Domain),
                          colour = "grey30", alpha = 0.9) +
       ggplot2::geom_text(data = doms,
-                         ggplot2::aes(x = (Start + End) / 2, y = -band / 2,
+                         ggplot2::aes(x = (Start + End) / 2, y = 0,
                                       label = Pfam),
-                         size = 2.5, colour = "grey15") +
+                         vjust = -0.6, size = 2.5, colour = "grey15") +
       ggplot2::scale_fill_brewer(palette = "Set2", name = "Pfam domain")
   }
 
