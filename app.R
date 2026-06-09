@@ -518,6 +518,19 @@ server <- function(input, output, session) {
     filename = function() sprintf("gene_summary_%s.csv", Sys.Date()),
     content  = function(file) readr::write_csv(gene_summary(), file)
   )
+  output$dl_sample <- downloadHandler(
+    filename = function() sprintf("sample_%s_variants_%s.csv",
+                                  input$sample_pick %||% "none", Sys.Date()),
+    content  = function(file) {
+      d <- sample_data() %>%
+        dplyr::select(family_id, SYMBOL, Tier, CHROM, POS, REF, ALT,
+                      HGVSc, HGVSp_short, IMPACT, TYPE, CADD, REVEL,
+                      am_class, SpliceAI_max, CLNSIG_clean, gnomad_AF,
+                      inheritance) %>%
+        dplyr::rename(Sample = family_id)
+      readr::write_csv(d, file)
+    }
+  )
 }
 
 # helper used inside the reactive (vectorised "why prioritised" text) ---------
