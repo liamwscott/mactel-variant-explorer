@@ -743,7 +743,8 @@ server <- function(input, output, session) {
         Inheritance = inheritance)
     DT::datatable(tbl, rownames = FALSE,
                   selection = "none", escape = FALSE,
-                  options = list(pageLength = 15, scrollX = TRUE)) %>%
+                  options = list(pageLength = 15, scrollX = TRUE,
+                                 headerCallback = header_tips_cb())) %>%
       DT::formatStyle("ClinVar",
                       backgroundColor = DT::styleEqual(
                         c("Pathogenic", "Pathogenic/Likely_pathogenic",
