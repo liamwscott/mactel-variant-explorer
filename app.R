@@ -418,7 +418,9 @@ server <- function(input, output, session) {
   })
 
   # ---- core filtered dataset ------------------------------------------------
-  filtered <- reactive({
+  # All filters EXCEPT the sample-group filter. The sample explorer uses this so
+  # an individual can be searched even if their diagnosis group is unticked.
+  filtered_pre_group <- reactive({
     df <- raw(); req(df)
 
     if (length(input$tier) > 0)
@@ -439,6 +441,11 @@ server <- function(input, output, session) {
       thr <- 10^input$gnomad
       df <- dplyr::filter(df, is.na(gnomad_AF) | gnomad_AF <= thr)
     }
+    df
+  })
+
+  filtered <- reactive({
+    df <- filtered_pre_group()
 
     # Sample-group filter: union of ticked groups (MacTel and HSAN1 may
     # overlap). No ticks shows nothing.
