@@ -958,10 +958,10 @@ server <- function(input, output, session) {
     bslib::nav_select("main_tabs", "Sample explorer")
   })
 
-  # Open a URL in the OS default browser, bypassing RStudio's browser option
-  # (which otherwise traps the link in its blank built-in Viewer).
-  observeEvent(input$open_alphafold, {
-    url <- input$open_alphafold
+  # Open a URL (AlphaFold, ClinVar, …) in the OS default browser, bypassing
+  # RStudio's browser option (which otherwise traps it in its blank Viewer).
+  observeEvent(input$open_url, {
+    url <- input$open_url
     if (is.null(url) || !nzchar(url)) return()
     os <- Sys.info()[["sysname"]]
     tryCatch(
