@@ -661,15 +661,15 @@ server <- function(input, output, session) {
                   "This sample has no variants under the current filters."))
     tbl <- d %>%
       dplyr::transmute(
-        Gene = SYMBOL, Tier = Tier,
-        Variant = paste0(CHROM, ":", POS, " ", REF, ">", ALT),
+        Gene = link_gene(SYMBOL), Tier = Tier,
+        Variant = link_variant(CHROM, POS, REF, ALT),
         HGVSc, HGVSp = HGVSp_short,
         Impact = IMPACT, Type = TYPE, CADD = round(CADD, 1),
         REVEL = round(REVEL, 3), AlphaMissense = am_class,
         ClinVar = CLNSIG_clean, gnomAD_AF = signif(gnomad_AF, 3),
         Inheritance = inheritance)
     DT::datatable(tbl, rownames = FALSE,
-                  selection = "single",
+                  selection = "none", escape = FALSE,
                   options = list(pageLength = 25, scrollX = TRUE)) %>%
       DT::formatStyle("ClinVar",
                       backgroundColor = DT::styleEqual(
