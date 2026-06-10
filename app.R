@@ -596,8 +596,9 @@ server <- function(input, output, session) {
   })
 
   output$gene_table <- DT::renderDT({
-    DT::datatable(gene_summary(), rownames = FALSE, filter = "top",
-                  selection = "single",
+    g <- gene_summary() %>% dplyr::mutate(SYMBOL = link_gene(SYMBOL))
+    DT::datatable(g, rownames = FALSE, filter = "top",
+                  selection = "none", escape = FALSE,
                   options = list(pageLength = 25, scrollX = TRUE))
   })
 
