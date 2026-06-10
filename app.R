@@ -437,6 +437,19 @@ server <- function(input, output, session) {
       df <- dplyr::filter(df, is.na(gnomad_AF) | gnomad_AF <= thr)
     }
 
+    # Sample-group filter: no ticks -> controls; otherwise union of ticked
+    # groups (MacTel and HSAN1 may overlap).
+    if (!is.null(SAMPLE_INFO)) {
+      sel <- input$sample_group
+      allowed <- if (length(sel) == 0) {
+        SAMPLE_INFO$family_id[SAMPLE_INFO$is_control]
+      } else {
+        SAMPLE_INFO$family_id[(("MacTel" %in% sel) & SAMPLE_INFO$is_mactel) |
+                              (("HSAN1"  %in% sel) & SAMPLE_INFO$is_hsan1)]
+      }
+      df <- dplyr::filter(df, family_id %in% allowed)
+    }
+
     # priority flags
     df <- df %>%
       dplyr::mutate(
