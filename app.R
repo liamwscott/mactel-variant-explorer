@@ -667,7 +667,8 @@ server <- function(input, output, session) {
     g <- gene_summary() %>% dplyr::mutate(SYMBOL = link_gene(SYMBOL))
     DT::datatable(g, rownames = FALSE, filter = "top",
                   selection = "none", escape = FALSE,
-                  options = list(pageLength = 25, scrollX = TRUE))
+                  options = list(pageLength = 25, scrollX = TRUE,
+                                 headerCallback = header_tips_cb()))
   })
 
   # ---- sample explorer ------------------------------------------------------
