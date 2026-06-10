@@ -45,6 +45,13 @@ GENE_INFO      <- load_gene_info(GENE_INFO_PATH)
 PROTEIN_DOMAINS <- load_protein_domains(file.path(app_dir, "data",
                                                   "protein_domains.tsv"))
 
+# Per-sample info (case/control status + data-group flags). Prefer the real
+# sheet when present (git-ignored); otherwise the de-identified example.
+SAMPLE_INFO_REAL    <- file.path(app_dir, "data", "all_samples_fixed.txt")
+SAMPLE_INFO_EXAMPLE <- file.path(app_dir, "data", "example_sample_info.tsv")
+SAMPLE_INFO <- load_sample_info(
+  if (file.exists(SAMPLE_INFO_REAL)) SAMPLE_INFO_REAL else SAMPLE_INFO_EXAMPLE)
+
 # Tier lookup: prefer the richer gene_info table; fall back to gene_tiers.tsv.
 TIER_PATH <- file.path(app_dir, "data", "gene_tiers.tsv")
 TIER_DF   <- if (!is.null(GENE_INFO)) {
