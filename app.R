@@ -273,7 +273,8 @@ ui <- page_sidebar(
         card_header(
           "Filtered variants",
           tags$span(bsicons::bs_icon("info-circle"),
-                    " click a row for variant detail + protein lollipop",
+                    " click Gene for its description, Variant for the lollipop, ",
+                    "or Sample to open the sample explorer",
                     class = "text-muted small ms-2"),
           downloadButton("dl_table", "Download CSV",
                          class = "btn-sm btn-primary float-end")
