@@ -945,6 +945,24 @@ server <- function(input, output, session) {
     bslib::nav_select("main_tabs", "Sample explorer")
   })
 
+  # Open a URL in the OS default browser, bypassing RStudio's browser option
+  # (which otherwise traps the link in its blank built-in Viewer).
+  observeEvent(input$open_alphafold, {
+    url <- input$open_alphafold
+    if (is.null(url) || !nzchar(url)) return()
+    os <- Sys.info()[["sysname"]]
+    tryCatch(
+      if (os == "Darwin") {
+        system2("open", shQuote(url), wait = FALSE)
+      } else if (os == "Windows") {
+        system2("cmd", c("/c", "start", '""', shQuote(url)), wait = FALSE)
+      } else {
+        system2("xdg-open", shQuote(url), wait = FALSE)
+      },
+      error = function(e) utils::browseURL(url)
+    )
+  })
+
   # ---- downloads ------------------------------------------------------------
   output$dl_table <- downloadHandler(
     filename = function() sprintf("filtered_variants_%s.csv", Sys.Date()),
