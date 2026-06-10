@@ -187,7 +187,7 @@ ui <- page_sidebar(
         checkboxGroupInput("sample_group", "Sample group",
                            choices = c("MacTel", "HSAN1", "Controls"),
                            selected = "MacTel", inline = TRUE),
-        checkboxGroupInput("tier", "Tier",
+        checkboxGroupInput("tier", "Gene Tier",
                            choices = NULL, inline = TRUE),
         selectizeInput("genes", "Gene(s)", choices = NULL, multiple = TRUE,
                        options = list(placeholder = "All genes")),
@@ -741,6 +741,27 @@ server <- function(input, output, session) {
       tags$span(tags$strong(paste0(label, ": ")), value,
                 style = "margin-right:18px;white-space:nowrap;")
     }
+
+    # SpliceAI: max delta score plus the splice event that drives it, with the
+    # four component delta scores broken out underneath.
+    getn <- function(col) if (col %in% names(row))
+      suppressWarnings(as.numeric(row[[col]])) else NA_real_
+    ds <- c("acceptor gain" = getn("SpliceAI_pred_DS_AG"),
+            "acceptor loss" = getn("SpliceAI_pred_DS_AL"),
+            "donor gain"    = getn("SpliceAI_pred_DS_DG"),
+            "donor loss"    = getn("SpliceAI_pred_DS_DL"))
+    ds_max <- suppressWarnings(max(ds, na.rm = TRUE))
+    spliceai_disp <- if (!is.null(row$SpliceAI_max) && !is.na(row$SpliceAI_max)) {
+      if (is.finite(ds_max) && ds_max > 0)
+        sprintf("%s (%s)", round(row$SpliceAI_max, 3), names(ds)[which.max(ds)])
+      else round(row$SpliceAI_max, 3)
+    } else NA
+    spliceai_breakdown <- if (any(!is.na(ds))) {
+      tags$div(class = "text-muted small", style = "margin-top:-4px;",
+        sprintf("SpliceAI delta scores — acceptor gain %.2f / acceptor loss %.2f / donor gain %.2f / donor loss %.2f",
+                ds[1], ds[2], ds[3], ds[4]))
+    } else NULL
+
     tags$div(
       style = "line-height:1.9;",
       fld("Variant", sprintf("%s:%s %s>%s",
@@ -753,11 +774,12 @@ server <- function(input, output, session) {
       fld("CADD", if (!is.na(row$CADD)) round(row$CADD, 1) else NA),
       fld("REVEL", if (!is.na(row$REVEL)) round(row$REVEL, 3) else NA),
       fld("AlphaMissense", row$am_class),
-      fld("SpliceAI", if (!is.na(row$SpliceAI_max)) round(row$SpliceAI_max, 3) else NA),
+      fld("SpliceAI", spliceai_disp),
       tags$br(),
       fld("ClinVar", as.character(row$CLNSIG_clean)),
       fld("gnomAD AF", if (!is.na(row$gnomad_AF)) signif(row$gnomad_AF, 3) else NA),
-      fld("Inheritance", row$inheritance)
+      fld("Inheritance", row$inheritance),
+      spliceai_breakdown
     )
   })
 
