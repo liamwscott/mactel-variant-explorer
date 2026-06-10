@@ -557,13 +557,14 @@ server <- function(input, output, session) {
   output$priority_table <- DT::renderDT({
     tbl <- priority() %>%
       dplyr::transmute(
-        Gene = SYMBOL, Tier = Tier, Sample = family_id,
+        Gene = link_gene(SYMBOL), Tier = Tier, Sample = link_sample(family_id),
+        Variant = link_variant(CHROM, POS, REF, ALT),
         HGVSc, HGVSp = HGVSp_short,
         Impact = IMPACT, Type = TYPE, CADD = round(CADD, 1),
         ClinVar = CLNSIG_clean, Flags = n_flags,
         `Why prioritised` = why_prioritised)
     DT::datatable(tbl, filter = "top", rownames = FALSE,
-                  selection = "single",
+                  selection = "none", escape = FALSE,
                   options = list(pageLength = 15, scrollX = TRUE)) %>%
       DT::formatStyle("Flags", fontWeight = "bold",
                       background = DT::styleColorBar(c(0, 3), "#9ec5fe")) %>%
