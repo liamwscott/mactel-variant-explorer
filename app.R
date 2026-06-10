@@ -832,8 +832,10 @@ server <- function(input, output, session) {
     if (nrow(hit) > 0) show_variant_modal(hit[1, ])
   })
 
-  # Clicking a Sample cell -> jump to the Sample explorer for that sample.
+  # Clicking a Sample cell (table or variant-modal chip) -> close any modal and
+  # jump to the Sample explorer for that sample.
   observeEvent(input$cell_sample, {
+    removeModal()
     updateSelectizeInput(session, "sample_pick",
                          selected = input$cell_sample)
     bslib::nav_select("main_tabs", "Sample explorer")
