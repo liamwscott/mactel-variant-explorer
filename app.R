@@ -613,8 +613,12 @@ server <- function(input, output, session) {
       tags$span("Control", class = "badge rounded-pill bg-secondary me-1")
     }
 
-    # Group-membership badges from the flag columns.
-    group_badges <- lapply(names(SAMPLE_TAG_COLS), function(col) {
+    # Group-membership badges from the flag columns. Skip HSAN1_variant when
+    # the diagnosis badge already shows HSAN1 (HSAN1-only sample).
+    tag_cols <- names(SAMPLE_TAG_COLS)
+    if (isTRUE(row$is_hsan1) && !isTRUE(row$is_mactel))
+      tag_cols <- setdiff(tag_cols, "HSAN1_variant")
+    group_badges <- lapply(tag_cols, function(col) {
       if (!(col %in% names(row))) return(NULL)
       val <- suppressWarnings(as.numeric(row[[col]]))
       if (is.na(val) || val != 1) return(NULL)
