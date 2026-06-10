@@ -632,7 +632,8 @@ server <- function(input, output, session) {
         `Why prioritised` = why_prioritised)
     DT::datatable(tbl, filter = "top", rownames = FALSE,
                   selection = "none", escape = FALSE,
-                  options = list(pageLength = 15, scrollX = TRUE)) %>%
+                  options = list(pageLength = 15, scrollX = TRUE,
+                                 headerCallback = header_tips_cb())) %>%
       DT::formatStyle("Flags", fontWeight = "bold",
                       background = DT::styleColorBar(c(0, 3), "#9ec5fe")) %>%
       DT::formatStyle("Impact",
