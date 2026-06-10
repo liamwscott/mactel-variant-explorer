@@ -783,6 +783,41 @@ server <- function(input, output, session) {
     )
   })
 
+  # External-resource buttons (AlphaFold structure + ClinVar record). Both fire
+  # a server-side handler so they open in the real default browser rather than
+  # RStudio's blank built-in Viewer. Re-renders with the active variant so the
+  # ClinVar link tracks the selected variant.
+  output$variant_links <- renderUI({
+    row <- modal_variant(); req(row)
+    open_btn <- function(url, label, icon) tags$button(
+      tagList(bsicons::bs_icon(icon), paste0(" ", label)),
+      type = "button", class = "btn btn-sm btn-outline-primary mb-2 me-2",
+      onclick = sprintf(
+        "Shiny.setInputValue('open_url','%s',{priority:'event'});", .jsesc(url)))
+
+    # AlphaFold: keyed by the gene's UniProt accession from the domain table.
+    uni <- if (!is.null(PROTEIN_DOMAINS)) {
+      u <- PROTEIN_DOMAINS$UniProt[PROTEIN_DOMAINS$SYMBOL == row$SYMBOL]
+      u <- u[!is.na(u) & u != ""]
+      if (length(u)) u[1] else NA
+    } else NA
+    af_btn <- if (!is.na(uni)) open_btn(
+      sprintf("https://alphafold.ebi.ac.uk/entry/%s", uni),
+      sprintf("AlphaFold structure (%s)", uni), "box") else NULL
+
+    # ClinVar: deep-link to the variation record when a CLNVID is present.
+    cv_id <- if ("CLNVID" %in% names(row))
+      suppressWarnings(as.character(row$CLNVID)) else NA
+    cv_id <- if (length(cv_id) && !is.na(cv_id) && nzchar(cv_id) &&
+                 cv_id != "NA") cv_id else NA
+    cv_btn <- if (!is.na(cv_id)) open_btn(
+      sprintf("https://www.ncbi.nlm.nih.gov/clinvar/variation/%s/", cv_id),
+      sprintf("ClinVar record (%s)", cv_id), "clipboard2-pulse") else NULL
+
+    if (is.null(af_btn) && is.null(cv_btn)) return(NULL)
+    div(class = "mb-1", af_btn, cv_btn)
+  })
+
   # Samples carrying the active variant, as clickable chips that jump to the
   # sample explorer. Re-renders when the active variant changes.
   output$variant_samples <- renderUI({
