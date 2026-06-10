@@ -221,16 +221,20 @@ ui <- page_sidebar(
     fill = FALSE,
     value_box("Variants", textOutput("vb_variants"),
               showcase = bsicons::bs_icon("file-earmark-text"),
-              theme = "primary", max_height = "92px"),
+              showcase_layout = bslib::showcase_left_center(width = "3rem"),
+              theme = "primary", max_height = "80px"),
     value_box("Genes", textOutput("vb_genes"),
               showcase = bsicons::bs_icon("diagram-3"),
-              theme = "secondary", max_height = "92px"),
+              showcase_layout = bslib::showcase_left_center(width = "3rem"),
+              theme = "secondary", max_height = "80px"),
     value_box("Samples", textOutput("vb_samples"),
               showcase = bsicons::bs_icon("people"),
-              theme = "info", max_height = "92px"),
+              showcase_layout = bslib::showcase_left_center(width = "3rem"),
+              theme = "info", max_height = "80px"),
     value_box("ClinVar P/LP", textOutput("vb_plp"),
               showcase = bsicons::bs_icon("exclamation-triangle"),
-              theme = "danger", max_height = "92px")
+              showcase_layout = bslib::showcase_left_center(width = "3rem"),
+              theme = "danger", max_height = "80px")
   ),
 
   navset_card_tab(
