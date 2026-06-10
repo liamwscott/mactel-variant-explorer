@@ -125,6 +125,41 @@ load_protein_domains <- function(path) {
     )
 }
 
+# Data-group flag columns (value 1 = member) -> display label for the
+# sample-explorer tags. Mito_haplo is deliberately excluded.
+SAMPLE_TAG_COLS <- c(
+  WES            = "WES",
+  Golden_cohort  = "Golden cohort",
+  Clinical_trial = "Clinical trial",
+  HSAN1_variant  = "HSAN1",
+  Early_onset    = "Early onset",
+  Low_PRS        = "Low PRS",
+  PHGDH_RV       = "PHGDH RV",
+  Chr_5          = "Chr 5",
+  Family_1       = "Family 1",
+  Other          = "Other"
+)
+
+#' Load the per-sample information sheet (TSV).
+#' Accepts either the real sheet (keyed by `Manifest_Sample_ID`, e.g. A0001RLA)
+#' or a de-identified sheet (already keyed by `family_id`, e.g. FAMILY001).
+#' Returns a tibble keyed by `family_id` (matching the variant data) with logical
+#' case/control flags plus the raw group flags used for tags, or NULL if absent.
+load_sample_info <- function(path) {
+  if (is.null(path) || !file.exists(path)) return(NULL)
+  s <- readr::read_tsv(path, show_col_types = FALSE)
+  if (!("family_id" %in% names(s)) && "Manifest_Sample_ID" %in% names(s)) {
+    s$family_id <- stringr::str_remove(as.character(s$Manifest_Sample_ID), "RLA$")
+  }
+  s %>%
+    dplyr::mutate(
+      family_id  = as.character(family_id),
+      is_mactel  = !is.na(MacTel_Diagnosis) & MacTel_Diagnosis == "yes",
+      is_hsan1   = !is.na(HSAN1_variant) & as.numeric(HSAN1_variant) == 1,
+      is_control = !is_mactel & !is_hsan1
+    )
+}
+
 #' Add a Tier column to a variant dataframe.
 #' Uses tier_df if supplied; otherwise falls back to the hardcoded Tier 1 list.
 #' Genes absent from the lookup become "Unassigned".
