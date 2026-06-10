@@ -614,7 +614,7 @@ server <- function(input, output, session) {
   # ---- sample explorer ------------------------------------------------------
   sample_data <- reactive({
     req(input$sample_pick)
-    filtered() %>%
+    filtered_pre_group() %>%
       dplyr::filter(family_id == input$sample_pick) %>%
       dplyr::arrange(dplyr::desc(is_pathLP), dplyr::desc(CADD))
   })
