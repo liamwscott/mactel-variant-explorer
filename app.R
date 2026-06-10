@@ -857,13 +857,19 @@ server <- function(input, output, session) {
       u <- u[!is.na(u) & u != ""]
       if (length(u)) u[1] else NA
     } else NA
+    # Fire a server-side handler (rather than a plain <a target=_blank>) so the
+    # link opens in the real default browser. RStudio otherwise traps _blank
+    # links — and even browseURL() — in its blank built-in Viewer.
     af_link <- if (!is.na(uni)) {
-      tags$a(
+      url <- sprintf("https://alphafold.ebi.ac.uk/entry/%s", uni)
+      tags$button(
         tagList(bsicons::bs_icon("box"),
                 sprintf(" View AlphaFold structure (%s)", uni)),
-        href = sprintf("https://alphafold.ebi.ac.uk/entry/%s", uni),
-        target = "_blank", rel = "noopener",
-        class = "btn btn-sm btn-outline-primary mb-2")
+        type = "button",
+        class = "btn btn-sm btn-outline-primary mb-2",
+        onclick = sprintf(
+          "Shiny.setInputValue('open_alphafold','%s',{priority:'event'});",
+          .jsesc(url)))
     } else NULL
 
     showModal(modalDialog(
