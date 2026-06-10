@@ -624,9 +624,18 @@ server <- function(input, output, session) {
   })
 
   # ---- sample explorer ------------------------------------------------------
-  sample_data <- reactive({
+  # Prioritised view respects the global filters (but not the sample-group one);
+  # the "all variants" view ignores every filter so the full carrier set shows.
+  sample_data_priority <- reactive({
     req(input$sample_pick)
     filtered_pre_group() %>%
+      dplyr::filter(family_id == input$sample_pick) %>%
+      dplyr::arrange(dplyr::desc(is_pathLP), dplyr::desc(CADD))
+  })
+
+  sample_data_all <- reactive({
+    req(input$sample_pick)
+    raw() %>%
       dplyr::filter(family_id == input$sample_pick) %>%
       dplyr::arrange(dplyr::desc(is_pathLP), dplyr::desc(CADD))
   })
