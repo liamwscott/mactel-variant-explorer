@@ -24,5 +24,6 @@ rsconnect/
 .DS_Store
 Thumbs.db
 
-# editor
+# editor / tooling
 .vscode/
+.claude/
