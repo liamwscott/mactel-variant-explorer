@@ -108,6 +108,51 @@ load_annotated <- function(path) {
   annotate_tier(load_variants(path), TIER_DF)
 }
 
+# Short descriptions shown as hover tooltips on table column headers. Keyed by
+# the displayed column label; covers every column used across the app's tables,
+# so the same callback can be reused everywhere (unmatched headers are ignored).
+COLUMN_TIPS <- c(
+  "Gene"          = "Gene symbol — click to open its description",
+  "SYMBOL"        = "Gene symbol — click to open its description",
+  "Tier"          = "Curated MacTel gene tier (Tier 1 = strongest evidence)",
+  "Sample"        = "Sample / individual ID — click to open in the sample explorer",
+  "Variant"       = "Genomic change CHROM:POS REF>ALT — click for the protein lollipop",
+  "HGVSc"         = "Coding-DNA change in HGVS c. notation",
+  "HGVSp"         = "Protein change in HGVS p. notation",
+  "Impact"        = "VEP-predicted consequence severity (HIGH / MODERATE / LOW / MODIFIER)",
+  "Type"          = "Variant class (LOF / SPLICING / MISSENSE / OTHER)",
+  "CADD"          = "CADD deleteriousness score (PHRED-scaled; >20 ~ top 1% most deleterious)",
+  "REVEL"         = "REVEL missense pathogenicity score (0-1; higher = more damaging)",
+  "AlphaMissense" = "AlphaMissense class (likely benign / ambiguous / likely pathogenic)",
+  "SpliceAI"      = "Maximum SpliceAI delta score (0-1; higher = stronger predicted splice effect)",
+  "ClinVar"       = "ClinVar clinical-significance classification",
+  "gnomAD_AF"     = "gnomAD population allele frequency",
+  "Inheritance"   = "Inheritance pattern observed for this variant",
+  "Flags"         = "Number of priority flags met (ClinVar P/LP, HIGH impact, high CADD)",
+  "Why prioritised" = "Which priority criteria this variant meets",
+  "Variants"      = "Number of variants in this gene under the current filters",
+  "Samples"       = "Number of distinct samples carrying a variant in this gene",
+  "P/LP"          = "Count of Pathogenic / Likely-pathogenic variants (ClinVar)",
+  "HIGH"          = "Count of HIGH-impact variants (VEP)",
+  "CADD_max"      = "Highest CADD score among this gene's variants",
+  "REVEL_max"     = "Highest REVEL score among this gene's variants",
+  "Types"         = "Variant classes present in this gene"
+)
+
+# headerCallback that attaches the COLUMN_TIPS as native title= tooltips. Matches
+# by header text, so it coexists with the filter row and works on any table.
+header_tips_cb <- function() {
+  tips_json <- jsonlite::toJSON(as.list(COLUMN_TIPS), auto_unbox = TRUE)
+  DT::JS(sprintf(
+    "function(thead, data, start, end, display) {
+       var tips = %s;
+       $(thead).find('th').each(function() {
+         var t = $(this).text().trim();
+         if (tips[t]) { $(this).attr('title', tips[t]); }
+       });
+     }", tips_json))
+}
+
 # -----------------------------------------------------------------------------
 # UI
 # -----------------------------------------------------------------------------
