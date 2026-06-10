@@ -779,6 +779,7 @@ server <- function(input, output, session) {
       uiOutput("variant_detail"),
       tags$hr(),
       gene_desc,
+      uiOutput("variant_samples"),
       plotly::plotlyOutput("lollipop", height = 430),
       helpText("Lollipops show every variant in this gene across the loaded ",
                "data (height = CADD, colour = ClinVar, size = number of ",
