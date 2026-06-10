@@ -683,12 +683,7 @@ server <- function(input, output, session) {
         diag_badge, group_badges)
   })
 
-  output$sample_table <- DT::renderDT({
-    validate(need(!is.null(input$sample_pick) && input$sample_pick != "",
-                  "Choose a sample from the dropdown."))
-    d <- sample_data()
-    validate(need(nrow(d) > 0,
-                  "This sample has no variants under the current filters."))
+  build_sample_dt <- function(d) {
     tbl <- d %>%
       dplyr::transmute(
         Gene = link_gene(SYMBOL), Tier = Tier,
@@ -700,7 +695,7 @@ server <- function(input, output, session) {
         Inheritance = inheritance)
     DT::datatable(tbl, rownames = FALSE,
                   selection = "none", escape = FALSE,
-                  options = list(pageLength = 25, scrollX = TRUE)) %>%
+                  options = list(pageLength = 15, scrollX = TRUE)) %>%
       DT::formatStyle("ClinVar",
                       backgroundColor = DT::styleEqual(
                         c("Pathogenic", "Pathogenic/Likely_pathogenic",
@@ -708,6 +703,23 @@ server <- function(input, output, session) {
                         c("#FDDEDE", "#F7D6F7", "#FDE8D8"))) %>%
       DT::formatStyle("Impact",
                       backgroundColor = DT::styleEqual("HIGH", "#FDDEDE"))
+  }
+
+  output$sample_table_priority <- DT::renderDT({
+    validate(need(!is.null(input$sample_pick) && input$sample_pick != "",
+                  "Choose a sample from the dropdown."))
+    d <- sample_data_priority()
+    validate(need(nrow(d) > 0,
+                  "No variants for this sample pass the current filters."))
+    build_sample_dt(d)
+  })
+
+  output$sample_table_all <- DT::renderDT({
+    validate(need(!is.null(input$sample_pick) && input$sample_pick != "",
+                  "Choose a sample from the dropdown."))
+    d <- sample_data_all()
+    validate(need(nrow(d) > 0, "This sample carries no variants."))
+    build_sample_dt(d)
   })
 
   # ---- click a table row -> detail modal ------------------------------------
