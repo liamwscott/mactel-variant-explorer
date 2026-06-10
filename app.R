@@ -540,7 +540,7 @@ server <- function(input, output, session) {
   output$variant_table <- DT::renderDT({
     DT::datatable(display_cols(filtered()),
                   filter = "top", rownames = FALSE,
-                  selection = "single",
+                  selection = "none", escape = FALSE,
                   extensions = "Buttons",
                   options = list(pageLength = 25, scrollX = TRUE,
                                  dom = "Bfrtip", buttons = c("copy", "csv"))) %>%
