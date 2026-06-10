@@ -786,32 +786,26 @@ server <- function(input, output, session) {
     if (nrow(hit) > 0) modal_variant(hit[1, ])
   })
 
-  observeEvent(input$variant_table_rows_selected, {
-    sel <- input$variant_table_rows_selected
-    df  <- filtered()
-    if (length(sel) && sel <= nrow(df)) show_variant_modal(df[sel, ])
-    DT::dataTableProxy("variant_table") %>% DT::selectRows(NULL)
+  # Clicking a Gene cell -> gene-description modal.
+  observeEvent(input$cell_gene, {
+    show_gene_modal(input$cell_gene)
   })
 
-  observeEvent(input$priority_table_rows_selected, {
-    sel <- input$priority_table_rows_selected
-    df  <- priority()
-    if (length(sel) && sel <= nrow(df)) show_variant_modal(df[sel, ])
-    DT::dataTableProxy("priority_table") %>% DT::selectRows(NULL)
+  # Clicking a Variant cell -> variant detail + protein lollipop modal.
+  observeEvent(input$cell_variant, {
+    parts <- strsplit(input$cell_variant, "\\|\\|")[[1]]
+    if (length(parts) != 4) return()
+    hit <- raw() %>%
+      dplyr::filter(CHROM == parts[1], as.character(POS) == parts[2],
+                    REF == parts[3], ALT == parts[4])
+    if (nrow(hit) > 0) show_variant_modal(hit[1, ])
   })
 
-  observeEvent(input$sample_table_rows_selected, {
-    sel <- input$sample_table_rows_selected
-    df  <- sample_data()
-    if (length(sel) && sel <= nrow(df)) show_variant_modal(df[sel, ])
-    DT::dataTableProxy("sample_table") %>% DT::selectRows(NULL)
-  })
-
-  observeEvent(input$gene_table_rows_selected, {
-    sel <- input$gene_table_rows_selected
-    df  <- gene_summary()
-    if (length(sel) && sel <= nrow(df)) show_gene_modal(df$SYMBOL[sel])
-    DT::dataTableProxy("gene_table") %>% DT::selectRows(NULL)
+  # Clicking a Sample cell -> jump to the Sample explorer for that sample.
+  observeEvent(input$cell_sample, {
+    updateSelectizeInput(session, "sample_pick",
+                         selected = input$cell_sample)
+    bslib::nav_select("main_tabs", "Sample explorer")
   })
 
   # ---- downloads ------------------------------------------------------------
