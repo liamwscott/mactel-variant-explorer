@@ -739,19 +739,38 @@ server <- function(input, output, session) {
       dplyr::arrange(family_id) %>%
       dplyr::pull(family_id)
     if (length(carriers) == 0) return(NULL)
+
+    # Diagnosis colour: red MacTel, blue HSAN1, purple both, grey neither.
+    diag_colour <- function(fid) {
+      if (is.null(SAMPLE_INFO)) return("#9E9E9E")
+      r <- SAMPLE_INFO[SAMPLE_INFO$family_id == fid, , drop = FALSE]
+      if (nrow(r) == 0) return("#9E9E9E")
+      m <- isTRUE(r$is_mactel[1]); h <- isTRUE(r$is_hsan1[1])
+      if (m && h) "#9467BD" else if (m) "#D62728" else if (h) "#1F77B4"
+      else "#9E9E9E"
+    }
     chips <- lapply(carriers, function(fid) {
       tags$a(href = "#", fid,
-             class = "badge rounded-pill bg-light text-dark border me-1",
-             style = "text-decoration:none;cursor:pointer;",
+             class = "badge rounded-pill me-1",
+             style = sprintf(
+               "background-color:%s;color:#fff;text-decoration:none;cursor:pointer;",
+               diag_colour(fid)),
              onclick = sprintf(
                "Shiny.setInputValue('cell_sample','%s',{priority:'event'});return false;",
                .jsesc(fid)))
     })
+    legend_dot <- function(col, lab) tags$span(
+      tags$span(style = sprintf(
+        "display:inline-block;width:10px;height:10px;border-radius:50%%;background-color:%s;margin-right:3px;",
+        col)), lab, class = "me-2")
     tagList(
       tags$p(tags$strong(sprintf("Carried by %d sample%s",
                                  length(carriers),
                                  if (length(carriers) == 1) "" else "s")),
              style = "margin-bottom:2px;"),
+      div(class = "small text-muted mb-1",
+          legend_dot("#D62728", "MacTel"), legend_dot("#1F77B4", "HSAN1"),
+          legend_dot("#9467BD", "Both"),   legend_dot("#9E9E9E", "Neither")),
       div(class = "mb-2", chips)
     )
   })
