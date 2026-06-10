@@ -345,6 +345,7 @@ ui <- page_sidebar(
             downloadButton("dl_sample", "Download CSV",
                            class = "btn-sm btn-primary float-end")
           ),
+          uiOutput("sample_tags"),
           DT::DTOutput("sample_table")
         )
       )
