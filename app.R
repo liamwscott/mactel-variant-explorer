@@ -185,9 +185,8 @@ ui <- page_sidebar(
       accordion_panel(
         "Core filters", icon = bsicons::bs_icon("funnel"),
         checkboxGroupInput("sample_group", "Sample group",
-                           choices = c("MacTel", "HSAN1"),
-                           selected = character(0), inline = TRUE),
-        helpText("No ticks shows controls. MacTel and HSAN1 may overlap."),
+                           choices = c("MacTel", "HSAN1", "Controls"),
+                           selected = "MacTel", inline = TRUE),
         checkboxGroupInput("tier", "Tier",
                            choices = NULL, inline = TRUE),
         selectizeInput("genes", "Gene(s)", choices = NULL, multiple = TRUE,
