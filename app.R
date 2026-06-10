@@ -850,6 +850,22 @@ server <- function(input, output, session) {
       )
     } else NULL
 
+    # AlphaFold structure link, keyed by the gene's UniProt accession from the
+    # bundled protein-domain table. Absent if the gene isn't in that table.
+    uni <- if (!is.null(PROTEIN_DOMAINS)) {
+      u <- PROTEIN_DOMAINS$UniProt[PROTEIN_DOMAINS$SYMBOL == row$SYMBOL]
+      u <- u[!is.na(u) & u != ""]
+      if (length(u)) u[1] else NA
+    } else NA
+    af_link <- if (!is.na(uni)) {
+      tags$a(
+        tagList(bsicons::bs_icon("box"),
+                sprintf(" View AlphaFold structure (%s)", uni)),
+        href = sprintf("https://alphafold.ebi.ac.uk/entry/%s", uni),
+        target = "_blank", rel = "noopener",
+        class = "btn btn-sm btn-outline-primary mb-2")
+    } else NULL
+
     showModal(modalDialog(
       title = tagList(
         tags$span(row$SYMBOL, style = "font-weight:700;font-size:1.2rem;"),
@@ -860,6 +876,7 @@ server <- function(input, output, session) {
       uiOutput("variant_detail"),
       tags$hr(),
       gene_desc,
+      af_link,
       uiOutput("variant_samples"),
       plotly::plotlyOutput("lollipop", height = 430),
       helpText("Lollipops show every variant in this gene across the loaded ",
