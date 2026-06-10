@@ -609,7 +609,8 @@ server <- function(input, output, session) {
                   selection = "none", escape = FALSE,
                   extensions = "Buttons",
                   options = list(pageLength = 25, scrollX = TRUE,
-                                 dom = "Bfrtip", buttons = c("copy", "csv"))) %>%
+                                 dom = "Bfrtip", buttons = c("copy", "csv"),
+                                 headerCallback = header_tips_cb())) %>%
       DT::formatStyle("ClinVar",
                       backgroundColor = DT::styleEqual(
                         c("Pathogenic", "Pathogenic/Likely_pathogenic",
