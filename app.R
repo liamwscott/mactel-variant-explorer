@@ -33,7 +33,7 @@ for (f in list.files(file.path(app_dir, "R"), pattern = "\\.R$", full.names = TR
   source(f, local = FALSE)
 }
 
-DEFAULT_REAL    <- file.path(app_dir, "data", "candidate_variants.csv")
+DEFAULT_REAL    <- file.path(app_dir, "data", "candidate_variants_tier1_2.csv")
 DEFAULT_EXAMPLE <- file.path(app_dir, "data", "example_variants.csv")
 startup_path    <- if (file.exists(DEFAULT_REAL)) DEFAULT_REAL else DEFAULT_EXAMPLE
 
@@ -850,28 +850,6 @@ server <- function(input, output, session) {
       )
     } else NULL
 
-    # AlphaFold structure link, keyed by the gene's UniProt accession from the
-    # bundled protein-domain table. Absent if the gene isn't in that table.
-    uni <- if (!is.null(PROTEIN_DOMAINS)) {
-      u <- PROTEIN_DOMAINS$UniProt[PROTEIN_DOMAINS$SYMBOL == row$SYMBOL]
-      u <- u[!is.na(u) & u != ""]
-      if (length(u)) u[1] else NA
-    } else NA
-    # Fire a server-side handler (rather than a plain <a target=_blank>) so the
-    # link opens in the real default browser. RStudio otherwise traps _blank
-    # links — and even browseURL() — in its blank built-in Viewer.
-    af_link <- if (!is.na(uni)) {
-      url <- sprintf("https://alphafold.ebi.ac.uk/entry/%s", uni)
-      tags$button(
-        tagList(bsicons::bs_icon("box"),
-                sprintf(" View AlphaFold structure (%s)", uni)),
-        type = "button",
-        class = "btn btn-sm btn-outline-primary mb-2",
-        onclick = sprintf(
-          "Shiny.setInputValue('open_alphafold','%s',{priority:'event'});",
-          .jsesc(url)))
-    } else NULL
-
     showModal(modalDialog(
       title = tagList(
         tags$span(row$SYMBOL, style = "font-weight:700;font-size:1.2rem;"),
@@ -882,7 +860,7 @@ server <- function(input, output, session) {
       uiOutput("variant_detail"),
       tags$hr(),
       gene_desc,
-      af_link,
+      uiOutput("variant_links"),
       uiOutput("variant_samples"),
       plotly::plotlyOutput("lollipop", height = 430),
       helpText("Lollipops show every variant in this gene across the loaded ",
