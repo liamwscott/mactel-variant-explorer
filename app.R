@@ -595,6 +595,39 @@ server <- function(input, output, session) {
     else sprintf("Variants in sample %s", input$sample_pick)
   })
 
+  # Data-group tags for the picked sample (Mito_haplo deliberately excluded).
+  output$sample_tags <- renderUI({
+    if (is.null(SAMPLE_INFO) ||
+        is.null(input$sample_pick) || input$sample_pick == "")
+      return(NULL)
+    row <- SAMPLE_INFO[SAMPLE_INFO$family_id == input$sample_pick, , drop = FALSE]
+    if (nrow(row) == 0) return(NULL)
+    row <- row[1, ]
+
+    # Diagnosis badge first.
+    diag_badge <- if (isTRUE(row$is_mactel)) {
+      tags$span("MacTel", class = "badge rounded-pill bg-danger me-1")
+    } else if (isTRUE(row$is_hsan1)) {
+      tags$span("HSAN1", class = "badge rounded-pill bg-warning text-dark me-1")
+    } else {
+      tags$span("Control", class = "badge rounded-pill bg-secondary me-1")
+    }
+
+    # Group-membership badges from the flag columns.
+    group_badges <- lapply(names(SAMPLE_TAG_COLS), function(col) {
+      if (!(col %in% names(row))) return(NULL)
+      val <- suppressWarnings(as.numeric(row[[col]]))
+      if (is.na(val) || val != 1) return(NULL)
+      tags$span(SAMPLE_TAG_COLS[[col]],
+                class = "badge rounded-pill bg-primary me-1")
+    })
+    group_badges <- Filter(Negate(is.null), group_badges)
+
+    div(class = "mb-2",
+        tags$span("Tags: ", class = "text-muted small me-1"),
+        diag_badge, group_badges)
+  })
+
   output$sample_table <- DT::renderDT({
     validate(need(!is.null(input$sample_pick) && input$sample_pick != "",
                   "Choose a sample from the dropdown."))
