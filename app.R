@@ -721,6 +721,34 @@ server <- function(input, output, session) {
     )
   })
 
+  # Samples carrying the active variant, as clickable chips that jump to the
+  # sample explorer. Re-renders when the active variant changes.
+  output$variant_samples <- renderUI({
+    row <- modal_variant(); req(row)
+    carriers <- raw() %>%
+      dplyr::filter(CHROM == row$CHROM, POS == row$POS,
+                    REF == row$REF, ALT == row$ALT) %>%
+      dplyr::distinct(family_id) %>%
+      dplyr::arrange(family_id) %>%
+      dplyr::pull(family_id)
+    if (length(carriers) == 0) return(NULL)
+    chips <- lapply(carriers, function(fid) {
+      tags$a(href = "#", fid,
+             class = "badge rounded-pill bg-light text-dark border me-1",
+             style = "text-decoration:none;cursor:pointer;",
+             onclick = sprintf(
+               "Shiny.setInputValue('cell_sample','%s',{priority:'event'});return false;",
+               .jsesc(fid)))
+    })
+    tagList(
+      tags$p(tags$strong(sprintf("Carried by %d sample%s",
+                                 length(carriers),
+                                 if (length(carriers) == 1) "" else "s")),
+             style = "margin-bottom:2px;"),
+      div(class = "mb-2", chips)
+    )
+  })
+
   show_variant_modal <- function(row) {
     if (is.null(row) || nrow(row) == 0) return(invisible())
     modal_variant(row)
