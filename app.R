@@ -448,7 +448,7 @@ server <- function(input, output, session) {
 
     df <- dplyr::filter(df, is.na(CADD) | CADD >= input$cadd)
     if (input$revel > 0)
-      df <- dplyr::filter(df, is.na(REVEL) | REVEL >= input$revel)
+      df <- dplyr::filter(df, !is.na(REVEL) & REVEL >= input$revel)
     if (input$gnomad < 0) {
       thr <- 10^input$gnomad
       df <- dplyr::filter(df, is.na(gnomad_AF) | gnomad_AF <= thr)
