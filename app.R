@@ -495,14 +495,36 @@ server <- function(input, output, session) {
     plotly::ggplotly(p, tooltip = "text")
   })
 
+  # ---- clickable-cell link builders -----------------------------------------
+  # Each renders an <a> that fires a Shiny input carrying the row's identity, so
+  # Gene/Variant/Sample cells become independent click targets in the same row.
+  # The JS-string payload is sorted-on by DT (prefix is constant), so columns
+  # still sort by the embedded id.
+  .jsesc <- function(x) gsub("'", "\\\\'", as.character(x))
+  link_gene <- function(sym) {
+    ifelse(is.na(sym) | sym == "", as.character(sym), sprintf(
+      "<a href='#' onclick=\"Shiny.setInputValue('cell_gene','%s',{priority:'event'});return false;\">%s</a>",
+      .jsesc(sym), sym))
+  }
+  link_sample <- function(fid) sprintf(
+    "<a href='#' onclick=\"Shiny.setInputValue('cell_sample','%s',{priority:'event'});return false;\">%s</a>",
+    .jsesc(fid), fid)
+  link_variant <- function(chrom, pos, ref, alt) {
+    label <- sprintf("%s:%s %s>%s", chrom, pos, ref, alt)
+    key   <- sprintf("%s||%s||%s||%s", chrom, pos, ref, alt)
+    sprintf(
+      "<a href='#' onclick=\"Shiny.setInputValue('cell_variant','%s',{priority:'event'});return false;\">%s</a>",
+      .jsesc(key), label)
+  }
+
   # ---- display-table builder ------------------------------------------------
   display_cols <- function(df) {
     df %>%
       dplyr::transmute(
-        Gene = SYMBOL,
+        Gene = link_gene(SYMBOL),
         Tier = Tier,
-        Sample = family_id,
-        Variant = paste0(CHROM, ":", POS, " ", REF, ">", ALT),
+        Sample = link_sample(family_id),
+        Variant = link_variant(CHROM, POS, REF, ALT),
         HGVSc, HGVSp = HGVSp_short,
         Impact = IMPACT, Type = TYPE,
         CADD = round(CADD, 1),
