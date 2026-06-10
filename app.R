@@ -926,7 +926,7 @@ server <- function(input, output, session) {
     filename = function() sprintf("sample_%s_variants_%s.csv",
                                   input$sample_pick %||% "none", Sys.Date()),
     content  = function(file) {
-      d <- sample_data() %>%
+      d <- sample_data_all() %>%
         dplyr::select(family_id, SYMBOL, Tier, CHROM, POS, REF, ALT,
                       HGVSc, HGVSp_short, IMPACT, TYPE, CADD, REVEL,
                       am_class, SpliceAI_max, CLNSIG_clean, gnomad_AF,
