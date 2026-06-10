@@ -412,6 +412,7 @@ server <- function(input, output, session) {
     updateSliderInput(session, "revel", value = 0)
     updateSliderInput(session, "gnomad", value = 0)
     updateSliderInput(session, "min_flags", value = 0)
+    updateCheckboxGroupInput(session, "sample_group", selected = character(0))
   })
 
   # ---- core filtered dataset ------------------------------------------------
