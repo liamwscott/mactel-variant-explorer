@@ -334,20 +334,32 @@ ui <- page_sidebar(
           selectizeInput("sample_pick", "Select a sample",
                          choices = NULL, multiple = FALSE,
                          options = list(placeholder = "Start typing a sample ID…")),
-          helpText("Shows every variant carried by the chosen sample, ",
-                   "respecting the global filters in the left panel.")
+          helpText("Shows every variant carried by the chosen sample. ",
+                   "The lower table ignores the global filters; the upper one ",
+                   "respects them.")
         ),
-        card(
-          card_header(
-            textOutput("sample_header"),
-            tags$span(bsicons::bs_icon("info-circle"),
-                      " click Gene for its description or Variant for the lollipop",
-                      class = "text-muted small ms-2"),
-            downloadButton("dl_sample", "Download CSV",
-                           class = "btn-sm btn-primary float-end")
-          ),
+        div(
           uiOutput("sample_tags"),
-          DT::DTOutput("sample_table")
+          card(
+            card_header(
+              "Filtered / prioritised variants",
+              tags$span(bsicons::bs_icon("info-circle"),
+                        " variants for this sample that pass the global filters",
+                        class = "text-muted small ms-2")
+            ),
+            DT::DTOutput("sample_table_priority")
+          ),
+          card(
+            card_header(
+              textOutput("sample_header"),
+              tags$span(bsicons::bs_icon("info-circle"),
+                        " every variant this sample carries, ignoring filters",
+                        class = "text-muted small ms-2"),
+              downloadButton("dl_sample", "Download CSV",
+                             class = "btn-sm btn-primary float-end")
+            ),
+            DT::DTOutput("sample_table_all")
+          )
         )
       )
     )
