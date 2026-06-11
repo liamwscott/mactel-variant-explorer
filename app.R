@@ -584,13 +584,22 @@ server <- function(input, output, session) {
   }
 
   # ---- display-table builder ------------------------------------------------
-  display_cols <- function(df) {
+  display_cols <- function(df, links = TRUE) {
+    if (links) {
+      gene_col    <- link_gene(df$SYMBOL)
+      sample_col  <- link_sample(df$family_id)
+      variant_col <- link_variant(df$CHROM, df$POS, df$REF, df$ALT)
+    } else {
+      gene_col    <- df$SYMBOL
+      sample_col  <- df$family_id
+      variant_col <- sprintf("%s:%s %s>%s", df$CHROM, df$POS, df$REF, df$ALT)
+    }
     df %>%
       dplyr::transmute(
-        Gene = link_gene(SYMBOL),
+        Gene = gene_col,
         Tier = Tier,
-        Sample = link_sample(family_id),
-        Variant = link_variant(CHROM, POS, REF, ALT),
+        Sample = sample_col,
+        Variant = variant_col,
         HGVSc, HGVSp = HGVSp_short,
         Impact = IMPACT, Type = TYPE,
         CADD = round(CADD, 1),
