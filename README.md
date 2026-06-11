@@ -9,7 +9,29 @@ REVEL, gnomAD frequency, and combined "priority flags".
 
 ---
 
-## Quick start
+## Quick start (collaborators) — just double-click
+
+You do **not** need RStudio or any command-line knowledge.
+
+1. **Install R** (once): https://cran.r-project.org — pick your operating
+   system, download, and install with the defaults.
+2. **Unzip** the `mactel_variant_explorer` folder somewhere convenient.
+3. **Double-click the launcher** for your system:
+   - **macOS** → `Run MacTel Explorer.command`
+   - **Windows** → `Run MacTel Explorer.bat`
+
+The app opens in your web browser. The **first** launch installs the required R
+packages automatically (a few minutes, once only); later launches start in
+seconds. To stop the app, close the small black/terminal window the launcher
+opened.
+
+> **macOS first-run note:** macOS may block a downloaded `.command` file. If
+> double-clicking does nothing or shows a security warning, right-click (or
+> Control-click) the file → **Open** → **Open**. You only need to do this once.
+
+---
+
+## Quick start (developers)
 
 ```r
 # from R / RStudio
@@ -82,6 +104,9 @@ never be committed. Only the de-identified `data/example_variants.csv`
 
 ```
 mactel_variant_explorer/
+├── Run MacTel Explorer.command # macOS double-click launcher
+├── Run MacTel Explorer.bat     # Windows double-click launcher
+├── launch.R                    # bootstrap: installs deps + starts the app
 ├── app.R                       # UI + server
 ├── R/
 │   ├── load_data.R             # CSV load + cleaning, palettes, level orders
