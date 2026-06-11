@@ -213,10 +213,10 @@ app_theme <- bs_theme(version = 5, bootswatch = "flatly", primary = "#1F4E79") |
       color: #ffffff !important;
     }
 
-    /* Tighter tab bar — smaller text/padding so all tabs fit on one row. */
+    /* Tab bar — larger, more readable tab labels. */
     .nav-tabs .nav-link {
-      padding: 0.3rem 0.65rem !important;
-      font-size: 0.82rem !important;
+      padding: 0.4rem 0.8rem !important;
+      font-size: 1rem !important;
     }
 
     /* Smaller value-box icons and text in the header. */
@@ -294,9 +294,9 @@ tier_box <- function(label, n, desc, accent) div(
 ui <- function(request) page_sidebar(
   title = tags$span(
     class = "d-inline-flex align-items-center",
-    dna_icon(32),
+    dna_icon(40),
     tags$span("MacTel Variant Explorer", class = "ms-2",
-              style = "font-size:1.75rem;font-weight:400;letter-spacing:0.2px;")
+              style = "font-size:2.2rem;font-weight:400;letter-spacing:0.2px;")
   ),
   theme = app_theme,
   # Non-fillable so cards keep their real heights and the page scrolls,
