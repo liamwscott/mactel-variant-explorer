@@ -60,6 +60,15 @@ TIER_DF   <- if (!is.null(GENE_INFO)) {
   load_gene_tiers(TIER_PATH)
 }
 
+# How many curated genes sit in each tier (for the landing-page summary box).
+# Counts the distinct gene list, independent of any uploaded variant file.
+tier_gene_count <- function(label) {
+  if (is.null(TIER_DF) || !"Tier" %in% names(TIER_DF)) return(0L)
+  sum(TIER_DF$Tier == label, na.rm = TRUE)
+}
+N_TIER1 <- tier_gene_count("Tier 1")
+N_TIER2 <- tier_gene_count("Tier 2")
+
 # Build a modalDialog describing a single gene from GENE_INFO.
 show_gene_modal <- function(symbol) {
   if (is.null(symbol) || is.na(symbol) || symbol == "") return(invisible())
@@ -263,6 +272,21 @@ tab_item <- function(icon, name, desc) tags$li(
   tags$span(class = "text-primary", bsicons::bs_icon(icon)),
   tags$strong(paste0(" ", name)), desc)
 
+# One tier "card" for the landing-page tier summary box: a big gene count, the
+# tier name, and a short plain-English description of the evidence strength.
+tier_box <- function(label, n, desc, accent) div(
+  class = "d-flex align-items-start p-3 rounded-3 h-100",
+  style = paste0("background:", accent$bg, ";border-left:5px solid ", accent$bar, ";"),
+  div(class = "flex-shrink-0 text-center me-3",
+      div(style = paste0("font-size:2rem;font-weight:700;line-height:1;color:",
+                         accent$bar, ";"),
+          n),
+      div(class = "small text-body-secondary", "genes")),
+  div(
+    tags$div(class = "fw-semibold", label),
+    tags$div(class = "small text-body-secondary", desc))
+)
+
 ui <- function(request) page_sidebar(
   title = tags$span(
     class = "d-inline-flex align-items-center",
@@ -428,6 +452,25 @@ ui <- function(request) page_sidebar(
             tab_item("person-lines-fill", "Sample explorer",
                      " — everything for a single participant.")
           )
+        )
+      ),
+      card(
+        card_header(bsicons::bs_icon("layers"),
+                    tags$strong(" MacTel gene tiers"),
+                    tags$span(" — the curated candidate-gene list",
+                              class = "text-body-secondary")),
+        tags$p(class = "text-body-secondary small mb-3",
+          "Genes are grouped by how strong the evidence is that they are ",
+          "involved in MacTel. Use the ", tags$strong("Gene Tier"),
+          " filter on the left to focus on one tier at a time."),
+        layout_columns(
+          col_widths = c(6, 6),
+          tier_box("Tier 1", N_TIER1,
+                   "Established, high-confidence links to MacTel.",
+                   list(bg = "#eaf1f8", bar = "#1F4E79")),
+          tier_box("Tier 2", N_TIER2,
+                   "Candidate genes with supporting but less definitive evidence.",
+                   list(bg = "#eef5f9", bar = "#3A7CA5"))
         )
       ),
       card(
