@@ -245,6 +245,24 @@ dna_icon <- function(size = 24) HTML(paste0(
   '<path d="m7 18 2.891 2.891"/>',
   '<path d="M9 22c1.798-1.998 2.518-3.995 2.807-5.993"/></svg>'))
 
+# A numbered "quick start" step for the landing page.
+landing_step <- function(n, title, body) div(
+  class = "d-flex mb-3",
+  div(class = "flex-shrink-0 d-flex align-items-center justify-content-center",
+      style = paste("width:30px;height:30px;border-radius:50%;background:#1F4E79;",
+                    "color:#fff;font-weight:600;font-size:0.9rem;"),
+      n),
+  div(class = "ms-3",
+      tags$div(tags$strong(title)),
+      tags$div(class = "small text-body-secondary", body))
+)
+
+# A tab entry for the landing-page "tabs" list, with its matching icon.
+tab_item <- function(icon, name, desc) tags$li(
+  class = "mb-2",
+  tags$span(class = "text-primary", bsicons::bs_icon(icon)),
+  tags$strong(paste0(" ", name)), desc)
+
 ui <- function(request) page_sidebar(
   title = tags$span(
     class = "d-inline-flex align-items-center",
@@ -353,52 +371,70 @@ ui <- function(request) page_sidebar(
     nav_panel(
       "Start here",
       icon = bsicons::bs_icon("compass"),
+      # Hero banner
+      div(
+        class = "p-4 mb-3 rounded-3 shadow-sm",
+        style = "background:linear-gradient(135deg,#1F4E79 0%,#3A7CA5 100%);color:#fff;",
+        div(
+          class = "d-flex align-items-center",
+          tags$span(class = "d-inline-flex", style = "opacity:.95;", dna_icon(54)),
+          div(
+            class = "ms-3",
+            tags$h2("Welcome to the MacTel Variant Explorer",
+                    class = "mb-1", style = "font-weight:600;font-size:1.6rem;"),
+            tags$p(class = "mb-0", style = "opacity:.92;font-size:1.02rem;",
+              "Explore, filter, and prioritise rare genetic variants from the ",
+              "MacTel study — no command line required.")
+          )
+        )
+      ),
       layout_columns(
         col_widths = c(7, 5),
         card(
-          card_header(bsicons::bs_icon("info-circle"), " Welcome"),
-          tags$p(
-            "This app helps you explore candidate genetic variants found in ",
-            "the MacTel study. Each row is a ", tags$strong("variant"),
+          card_header(bsicons::bs_icon("info-circle"),
+                      tags$strong(" How to use this app")),
+          tags$p(class = "text-body-secondary small mb-3",
+            "Each row in the data is a ", tags$strong("variant"),
             " (a single change in a person's DNA) seen in a ",
-            tags$strong("sample"), " (one participant), in one of the genes on ",
-            "the MacTel gene list."),
-          tags$p(
-            "Use the ", tags$strong("filters on the left"), " to narrow things ",
-            "down — by gene, sample group, predicted severity, or how rare the ",
-            "variant is — and the counters at the top update live. Then move ",
-            "through the tabs above to view the results different ways."),
-          tags$p(class = "mb-0",
-            tags$strong("Tip: "), "anything ", tags$span(class = "text-primary",
-            "blue and underlined"), " is clickable. Click a ",
-            tags$strong("gene"), " for its description, a ",
-            tags$strong("variant"), " to see it on the protein, or a ",
-            tags$strong("sample"), " to open that participant's profile.")
+            tags$strong("sample"), " (one participant), in a MacTel gene."),
+          landing_step(1, "Filter on the left",
+            "Narrow by gene, sample group, predicted severity, or how rare the variant is. The counters up top update live."),
+          landing_step(2, "Browse the tabs",
+            "Each tab shows the filtered variants a different way — charts, tables, and plots."),
+          landing_step(3, "Click anything blue",
+            "Genes, variants, and samples are links that open detail views."),
+          div(class = "alert alert-primary d-flex align-items-center mb-0 py-2",
+              role = "alert",
+              bsicons::bs_icon("hand-index-thumb"),
+              tags$span(class = "ms-2 small",
+                tags$strong("Tip: "), "click a ", tags$strong("gene"),
+                " for its description, a ", tags$strong("variant"),
+                " to see it on the protein, or a ", tags$strong("sample"),
+                " to open that participant's profile."))
         ),
         card(
-          card_header(bsicons::bs_icon("signpost-2"), " The tabs"),
-          tags$ul(class = "mb-0 small",
-            tags$li(tags$strong("Overview"),
-                    " — summary charts of the variants currently filtered in."),
-            tags$li(tags$strong("Variant table"),
-                    " — every filtered variant in a searchable table you can ",
-                    "sort and download."),
-            tags$li(tags$strong("Score scatter"),
-                    " — CADD vs REVEL, to spot variants that score high on ",
-                    "both."),
-            tags$li(tags$strong("Priority variants"),
-                    " — the strongest candidates, flagged by a few key ",
-                    "criteria, with a plain-English reason."),
-            tags$li(tags$strong("Gene summary"),
-                    " — one row per gene, rolling up its variants."),
-            tags$li(tags$strong("Sample explorer"),
-                    " — everything for a single participant.")
+          card_header(bsicons::bs_icon("signpost-2"), tags$strong(" The tabs")),
+          tags$ul(class = "list-unstyled mb-0 small",
+            tab_item("bar-chart-line", "Overview",
+                     " — summary charts of the variants currently filtered in."),
+            tab_item("table", "Variant table",
+                     " — every filtered variant in a searchable, sortable table."),
+            tab_item("graph-up", "Score scatter",
+                     " — CADD vs REVEL, to spot variants high on both."),
+            tab_item("star-fill", "Priority variants",
+                     " — the strongest candidates, with a plain-English reason."),
+            tab_item("card-list", "Gene summary",
+                     " — one row per gene, rolling up its variants."),
+            tab_item("person-lines-fill", "Sample explorer",
+                     " — everything for a single participant.")
           )
         )
       ),
       card(
         card_header(bsicons::bs_icon("book"),
-                    " Glossary — what do these terms and scores mean?"),
+                    tags$strong(" Glossary"),
+                    tags$span(" — what do these terms and scores mean?",
+                              class = "text-body-secondary")),
         tags$p(class = "text-body-secondary small",
           "Click any term to expand it. The numeric cut-offs below are common ",
           "rules of thumb, not hard rules — always interpret a variant in ",
@@ -471,6 +507,7 @@ ui <- function(request) page_sidebar(
 
     nav_panel(
       "Overview",
+      icon = bsicons::bs_icon("bar-chart-line"),
       layout_columns(
         col_widths = c(4, 4, 4),
         card(card_header("VEP impact"), plotOutput("p_impact", height = 340)),
@@ -488,6 +525,7 @@ ui <- function(request) page_sidebar(
 
     nav_panel(
       "Variant table",
+      icon = bsicons::bs_icon("table"),
       card(
         card_header(
           "Filtered variants",
@@ -504,6 +542,7 @@ ui <- function(request) page_sidebar(
 
     nav_panel(
       "Score scatter",
+      icon = bsicons::bs_icon("graph-up"),
       card(
         card_header("CADD vs REVEL — hover for variant detail"),
         plotly::plotlyOutput("scatter", height = 600)
@@ -512,6 +551,7 @@ ui <- function(request) page_sidebar(
 
     nav_panel(
       "Priority variants",
+      icon = bsicons::bs_icon("star-fill"),
       card(
         card_header(
           "Priority variants (flag-filtered)",
@@ -532,6 +572,7 @@ ui <- function(request) page_sidebar(
 
     nav_panel(
       "Gene summary",
+      icon = bsicons::bs_icon("card-list"),
       card(
         card_header(
           "Per-gene summary",
@@ -547,6 +588,7 @@ ui <- function(request) page_sidebar(
 
     nav_panel(
       "Sample explorer",
+      icon = bsicons::bs_icon("person-lines-fill"),
       layout_sidebar(
         sidebar = sidebar(
           width = 280, position = "left",
