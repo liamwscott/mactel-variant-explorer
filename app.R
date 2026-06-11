@@ -229,6 +229,10 @@ app_theme <- bs_theme(version = 5, bootswatch = "flatly", primary = "#1F4E79") |
       height: 1.4rem !important;
       font-size: 1.4rem !important;
     }
+
+    /* Larger card sub-headings across the app (e.g. How to use this app,
+       The tabs, MacTel gene tiers, and each chart's title). */
+    .card-header { font-size: 1.15rem !important; }
   ")
 
 # Glossary helper for the "Start here" tab. Renders one collapsible entry with
