@@ -222,6 +222,16 @@ app_theme <- bs_theme(version = 5, bootswatch = "flatly", primary = "#1F4E79") |
     }
   ")
 
+# Glossary helper for the "Start here" tab. Renders one collapsible entry with
+# a bold one-line summary followed by a plain-English explanation.
+gloss <- function(title, summary, ...) {
+  accordion_panel(
+    title,
+    tags$p(class = "mb-1", tags$strong(summary)),
+    tags$div(class = "text-body-secondary small", ...)
+  )
+}
+
 ui <- page_sidebar(
   title = "MacTel Variant Explorer",
   theme = app_theme,
@@ -313,6 +323,125 @@ ui <- page_sidebar(
 
   navset_card_tab(
     id = "main_tabs",
+
+    nav_panel(
+      "Start here",
+      icon = bsicons::bs_icon("compass"),
+      layout_columns(
+        col_widths = c(7, 5),
+        card(
+          card_header(bsicons::bs_icon("info-circle"), " Welcome"),
+          tags$p(
+            "This app helps you explore candidate genetic variants found in ",
+            "the MacTel study. Each row is a ", tags$strong("variant"),
+            " (a single change in a person's DNA) seen in a ",
+            tags$strong("sample"), " (one participant), in one of the genes on ",
+            "the MacTel gene list."),
+          tags$p(
+            "Use the ", tags$strong("filters on the left"), " to narrow things ",
+            "down — by gene, sample group, predicted severity, or how rare the ",
+            "variant is — and the counters at the top update live. Then move ",
+            "through the tabs above to view the results different ways."),
+          tags$p(class = "mb-0",
+            tags$strong("Tip: "), "anything ", tags$span(class = "text-primary",
+            "blue and underlined"), " is clickable. Click a ",
+            tags$strong("gene"), " for its description, a ",
+            tags$strong("variant"), " to see it on the protein, or a ",
+            tags$strong("sample"), " to open that participant's profile.")
+        ),
+        card(
+          card_header(bsicons::bs_icon("signpost-2"), " The tabs"),
+          tags$ul(class = "mb-0 small",
+            tags$li(tags$strong("Overview"),
+                    " — summary charts of the variants currently filtered in."),
+            tags$li(tags$strong("Variant table"),
+                    " — every filtered variant in a searchable table you can ",
+                    "sort and download."),
+            tags$li(tags$strong("Score scatter"),
+                    " — CADD vs REVEL, to spot variants that score high on ",
+                    "both."),
+            tags$li(tags$strong("Priority variants"),
+                    " — the strongest candidates, flagged by a few key ",
+                    "criteria, with a plain-English reason."),
+            tags$li(tags$strong("Gene summary"),
+                    " — one row per gene, rolling up its variants."),
+            tags$li(tags$strong("Sample explorer"),
+                    " — everything for a single participant.")
+          )
+        )
+      ),
+      card(
+        card_header(bsicons::bs_icon("book"),
+                    " Glossary — what do these terms and scores mean?"),
+        tags$p(class = "text-body-secondary small",
+          "Click any term to expand it. The numeric cut-offs below are common ",
+          "rules of thumb, not hard rules — always interpret a variant in ",
+          "context."),
+        accordion(
+          open = FALSE,
+          gloss("CADD", "How damaging a variant is predicted to be (any variant type).",
+                "Scaled 0–99. Higher means more likely to be harmful. As a guide, ",
+                "a score of ", tags$strong("20"), " puts a variant in the top 1% ",
+                "most deleterious in the genome, and ", tags$strong("30"),
+                " in the top 0.1%."),
+          gloss("REVEL", "Likelihood that a missense change is disease-causing.",
+                "A score from 0 to 1 for ", tags$strong("missense"),
+                " variants (one amino acid swapped for another). Higher means ",
+                "more likely pathogenic; values above ~0.5 are suggestive and ",
+                "above ~0.75 are stronger evidence."),
+          gloss("AlphaMissense", "Google DeepMind's AI prediction for missense changes.",
+                "Gives each missense variant a score (0–1) and a class: ",
+                tags$strong("likely_benign"), ", ", tags$strong("ambiguous"),
+                ", or ", tags$strong("likely_pathogenic"),
+                ". Likely-pathogenic calls are highlighted in the tables."),
+          gloss("SpliceAI", "Whether a variant is predicted to disrupt splicing.",
+                "Splicing is how the cell stitches a gene's coding pieces ",
+                "together; disrupting it can break the protein. Scored 0–1: ",
+                "≥0.2 possible, ≥0.5 likely, ≥0.8 high-confidence splice effect."),
+          gloss("gnomAD allele frequency (AF)", "How common the variant is in the general population.",
+                "From the gnomAD reference database of >100,000 people. ",
+                tags$strong("Lower is rarer."), " Disease-causing variants for a ",
+                "rare condition are usually very rare (e.g. AF below 0.001). The ",
+                "slider uses log10, so −3 means AF ≤ 0.001."),
+          gloss("ClinVar significance", "What clinical databases say about the variant.",
+                "ClinVar is a public archive of variant interpretations: ",
+                tags$strong("Pathogenic"), ", ", tags$strong("Likely pathogenic"),
+                ", ", tags$strong("Uncertain significance (VUS)"), ", ",
+                tags$strong("Conflicting"), ", ",
+                tags$strong("Benign/Likely benign"), ", or ",
+                tags$strong("Not in ClinVar"), " if it has never been submitted."),
+          gloss("VEP impact", "A severity category for the variant's effect on the gene.",
+                tags$strong("HIGH"), " (e.g. a premature stop, frameshift, or ",
+                "splice-site change — likely to break the protein), ",
+                tags$strong("MODERATE"), " (e.g. a missense change), ",
+                tags$strong("LOW"), " (e.g. a silent change), and ",
+                tags$strong("MODIFIER"), " (non-coding / regulatory regions)."),
+          gloss("Variant type", "A simplified grouping of the change.",
+                tags$strong("LOF"), " (loss of function — disables the gene), ",
+                tags$strong("SPLICING"), ", ", tags$strong("MISSENSE"),
+                " (amino-acid change), or ", tags$strong("OTHER"), "."),
+          gloss("Inheritance", "The predicted way the variant was inherited.",
+                "Based on the genotype pattern — for example de novo (new in the ",
+                "child), dominant, recessive (two copies), compound heterozygous, ",
+                "or X-linked. Shown as \"unknown\" when it can't be determined."),
+          gloss("Gene tier", "How strong the evidence is that the gene is involved in MacTel.",
+                tags$strong("Tier 1"), " genes have established, high-confidence ",
+                "links to MacTel; ", tags$strong("Tier 2"),
+                " are candidate genes with supporting but less definitive ",
+                "evidence. ", tags$strong("Unassigned"),
+                " means the gene isn't on the curated list."),
+          gloss("Sample groups", "How participants are categorised.",
+                tags$strong("MacTel"), " — diagnosed cases; ",
+                tags$strong("HSAN1"), " — carries an HSAN1-causing variant ",
+                "(in SPTLC1/SPTLC2); ", tags$strong("Controls"),
+                " — participants who are neither."),
+          gloss("HGVSc / HGVSp", "The standard names for a variant.",
+                tags$strong("HGVSc"), " describes the change at the DNA/coding ",
+                "level (starts with \"c.\"); ", tags$strong("HGVSp"),
+                " describes the resulting protein change (starts with \"p.\").")
+        )
+      )
+    ),
 
     nav_panel(
       "Overview",
