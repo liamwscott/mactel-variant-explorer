@@ -219,15 +219,27 @@ app_theme <- bs_theme(version = 5, bootswatch = "flatly", primary = "#1F4E79") |
       font-size: 1rem !important;
     }
 
-    /* Smaller value-box icons and text in the header. */
-    .bslib-value-box .value-box-title { font-size: 0.78rem !important; margin-bottom: 0 !important; }
-    .bslib-value-box .value-box-value { font-size: 1.05rem !important; }
-    .bslib-value-box .value-box-showcase { padding: 0.25rem 0.5rem !important; }
+    /* Header value boxes: larger text, and an icon that sits centered
+       right next to the title/value rather than drifting off. */
+    .bslib-value-box .value-box-title { font-size: 1rem !important; margin-bottom: 0.1rem !important; }
+    .bslib-value-box .value-box-value { font-size: 1.7rem !important; line-height: 1.1 !important; }
+    .bslib-value-box .value-box-area {
+      justify-content: center !important;
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+    }
+    .bslib-value-box .value-box-showcase {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      padding: 0 0.5rem !important;
+    }
     .bslib-value-box .value-box-showcase svg,
     .bslib-value-box .value-box-showcase .bi {
-      width: 1.4rem !important;
-      height: 1.4rem !important;
-      font-size: 1.4rem !important;
+      width: 2rem !important;
+      height: 2rem !important;
+      font-size: 2rem !important;
+      margin: 0 !important;
     }
 
     /* Larger card sub-headings across the app (e.g. How to use this app,
@@ -377,20 +389,20 @@ ui <- function(request) page_sidebar(
     fill = FALSE,
     value_box("Variants", textOutput("vb_variants"),
               showcase = bsicons::bs_icon("file-earmark-text"),
-              showcase_layout = bslib::showcase_left_center(width = "3rem"),
-              theme = "primary", max_height = "80px"),
+              showcase_layout = bslib::showcase_left_center(width = "3.25rem"),
+              theme = "primary", max_height = "100px"),
     value_box("Genes", textOutput("vb_genes"),
               showcase = dna_icon(),
-              showcase_layout = bslib::showcase_left_center(width = "3rem"),
-              theme = "secondary", max_height = "80px"),
+              showcase_layout = bslib::showcase_left_center(width = "3.25rem"),
+              theme = "secondary", max_height = "100px"),
     value_box("Samples", textOutput("vb_samples"),
               showcase = bsicons::bs_icon("people"),
-              showcase_layout = bslib::showcase_left_center(width = "3rem"),
-              theme = "info", max_height = "80px"),
+              showcase_layout = bslib::showcase_left_center(width = "3.25rem"),
+              theme = "info", max_height = "100px"),
     value_box("ClinVar P/LP", textOutput("vb_plp"),
               showcase = bsicons::bs_icon("exclamation-triangle"),
-              showcase_layout = bslib::showcase_left_center(width = "3rem"),
-              theme = "danger", max_height = "80px")
+              showcase_layout = bslib::showcase_left_center(width = "3.25rem"),
+              theme = "danger", max_height = "100px")
   ),
 
   navset_card_tab(
