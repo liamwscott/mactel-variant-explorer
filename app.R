@@ -1037,7 +1037,7 @@ server <- function(input, output, session) {
   # ---- downloads ------------------------------------------------------------
   output$dl_table <- downloadHandler(
     filename = function() sprintf("filtered_variants_%s.csv", Sys.Date()),
-    content  = function(file) readr::write_csv(display_cols(filtered()), file)
+    content  = function(file) readr::write_csv(display_cols(filtered(), links = FALSE), file)
   )
   output$dl_priority <- downloadHandler(
     filename = function() sprintf("priority_variants_%s.csv", Sys.Date()),
