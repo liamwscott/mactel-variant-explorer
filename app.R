@@ -1072,6 +1072,12 @@ server <- function(input, output, session) {
     bslib::nav_select("main_tabs", "Variant table")
   })
 
+  # "View variants on protein" in the gene modal -> open the protein lollipop for
+  # the whole gene with no variant pre-selected (detail header blank until click).
+  observeEvent(input$gene_view_lollipop, {
+    show_gene_lollipop_modal(input$gene_view_lollipop)
+  })
+
   # Clicking a Variant cell -> variant detail + protein lollipop modal.
   observeEvent(input$cell_variant, {
     parts <- strsplit(input$cell_variant, "\\|\\|")[[1]]
