@@ -219,28 +219,8 @@ app_theme <- bs_theme(version = 5, bootswatch = "flatly", primary = "#1F4E79") |
       font-size: 1rem !important;
     }
 
-    /* Header value boxes: larger text, and an icon that sits centered
-       right next to the title/value rather than drifting off. */
-    .bslib-value-box .value-box-title { font-size: 1rem !important; margin-bottom: 0.1rem !important; }
-    .bslib-value-box .value-box-value { font-size: 1.7rem !important; line-height: 1.1 !important; }
-    .bslib-value-box .value-box-area {
-      justify-content: center !important;
-      padding-top: 0 !important;
-      padding-bottom: 0 !important;
-    }
-    .bslib-value-box .value-box-showcase {
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      padding: 0 0.5rem !important;
-    }
-    .bslib-value-box .value-box-showcase svg,
-    .bslib-value-box .value-box-showcase .bi {
-      width: 2rem !important;
-      height: 2rem !important;
-      font-size: 2rem !important;
-      margin: 0 !important;
-    }
+    /* Header summary stat cards: keep the live count text white. */
+    .bslib-grid > div .shiny-text-output { color: inherit !important; }
 
     /* Larger card sub-headings across the app (e.g. How to use this app,
        The tabs, MacTel gene tiers, and each chart's title). */
@@ -301,6 +281,23 @@ tier_box <- function(label, n, desc, accent) div(
   div(
     tags$div(class = "fw-semibold", label),
     tags$div(class = "small text-body-secondary", desc))
+)
+
+# A header summary stat: a coloured tile with the icon glued to the left of the
+# label + live count. Built with flexbox (not bslib value_box) so the icon
+# always sits right next to the text, at any window width.
+stat_card <- function(value_id, label, icon, bg) div(
+  class = "d-flex align-items-center p-3 rounded-3 h-100 text-white",
+  style = paste0("background:", bg, ";"),
+  div(class = "flex-shrink-0 d-flex align-items-center justify-content-center me-3",
+      style = paste0("width:3rem;height:3rem;border-radius:0.6rem;",
+                     "background:rgba(255,255,255,0.22);font-size:1.6rem;"),
+      if (inherits(icon, c("html", "shiny.tag", "shiny.tag.list")))
+        icon else bsicons::bs_icon(icon)),
+  div(class = "lh-1",
+      tags$div(label, style = "font-size:0.9rem;font-weight:600;opacity:0.92;"),
+      tags$div(textOutput(value_id, inline = TRUE),
+               style = "font-size:1.8rem;font-weight:700;margin-top:0.15rem;"))
 )
 
 ui <- function(request) page_sidebar(
@@ -384,25 +381,14 @@ ui <- function(request) page_sidebar(
                                "and tab — paste it to a colleague or bookmark it."))
   ),
 
-  # value boxes (compact)
+  # Header summary stats (custom flexbox cards — see stat_card()).
   layout_columns(
     fill = FALSE,
-    value_box("Variants", textOutput("vb_variants"),
-              showcase = bsicons::bs_icon("file-earmark-text"),
-              showcase_layout = bslib::showcase_left_center(width = "3.25rem"),
-              theme = "primary", max_height = "100px"),
-    value_box("Genes", textOutput("vb_genes"),
-              showcase = dna_icon(),
-              showcase_layout = bslib::showcase_left_center(width = "3.25rem"),
-              theme = "secondary", max_height = "100px"),
-    value_box("Samples", textOutput("vb_samples"),
-              showcase = bsicons::bs_icon("people"),
-              showcase_layout = bslib::showcase_left_center(width = "3.25rem"),
-              theme = "info", max_height = "100px"),
-    value_box("ClinVar P/LP", textOutput("vb_plp"),
-              showcase = bsicons::bs_icon("exclamation-triangle"),
-              showcase_layout = bslib::showcase_left_center(width = "3.25rem"),
-              theme = "danger", max_height = "100px")
+    col_widths = c(3, 3, 3, 3),
+    stat_card("vb_variants", "Variants", "file-earmark-text", "#1F4E79"),
+    stat_card("vb_genes",    "Genes",    dna_icon(26),        "#5a7184"),
+    stat_card("vb_samples",  "Samples",  "people",            "#3498DB"),
+    stat_card("vb_plp",      "ClinVar P/LP", "exclamation-triangle", "#C0392B")
   ),
 
   navset_card_tab(
