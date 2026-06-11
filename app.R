@@ -98,7 +98,17 @@ show_gene_modal <- function(symbol) {
     ),
     body,
     easyClose = TRUE,
-    footer = modalButton("Close"),
+    footer = tagList(
+      tags$button(
+        tagList(bsicons::bs_icon("table"), " View all variants"),
+        class = "btn btn-primary",
+        onclick = sprintf(
+          "Shiny.setInputValue('gene_view_variants','%s',{priority:'event'});return false;",
+          gsub("'", "\\\\'", symbol)
+        )
+      ),
+      modalButton("Close")
+    ),
     size = "l"
   ))
 }
