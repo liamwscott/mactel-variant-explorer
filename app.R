@@ -977,6 +977,46 @@ server <- function(input, output, session) {
     ))
   }
 
+  # Gene-level landing for the protein lollipop: shows the plot for every variant
+  # in the gene with no variant pre-selected (the detail header stays blank until
+  # a point is clicked). Same modal/visuals as the variant view, minus the ring.
+  show_gene_lollipop_modal <- function(symbol) {
+    if (is.null(symbol) || is.na(symbol) || symbol == "") return(invisible())
+    modal_variant(NULL)
+    modal_gene(symbol)
+
+    info <- if (!is.null(GENE_INFO)) GENE_INFO[GENE_INFO$SYMBOL == symbol, ] else NULL
+    tier <- if (!is.null(info) && nrow(info) > 0) info$Tier[1] else NA
+    gene_desc <- if (!is.null(info) && nrow(info) > 0 &&
+                     !is.na(info$Gene_Description[1]) &&
+                     info$Gene_Description[1] != "") {
+      tagList(
+        tags$p(tags$strong("Gene description"), style = "margin-bottom:2px;"),
+        tags$p(info$Gene_Description[1], class = "text-muted",
+               style = "font-size:0.9rem;")
+      )
+    } else NULL
+
+    showModal(modalDialog(
+      title = tagList(
+        tags$span(symbol, style = "font-weight:700;font-size:1.2rem;"),
+        if (!is.null(tier) && !is.na(tier))
+          tags$span(tier, class = "badge bg-secondary",
+                    style = "margin-left:8px;vertical-align:middle;")
+      ),
+      uiOutput("variant_detail"),
+      gene_desc,
+      uiOutput("variant_links"),
+      uiOutput("variant_samples"),
+      plotly::plotlyOutput("lollipop", height = 430),
+      helpText("Lollipops show every variant in this gene across the loaded ",
+               "data (height = CADD, colour = ClinVar, size = number of ",
+               "samples). Boxes are Pfam protein domains. Hover a point for ",
+               "detail, or click one to load that variant above."),
+      easyClose = TRUE, footer = modalButton("Close"), size = "xl"
+    ))
+  }
+
   output$lollipop <- plotly::renderPlotly({
     gene <- modal_gene(); req(gene)
     gdf <- dplyr::filter(raw(), SYMBOL == gene)
