@@ -232,7 +232,7 @@ gloss <- function(title, summary, ...) {
   )
 }
 
-ui <- page_sidebar(
+ui <- function(request) page_sidebar(
   title = "MacTel Variant Explorer",
   theme = app_theme,
   # Non-fillable so cards keep their real heights and the page scrolls,
@@ -245,6 +245,11 @@ ui <- page_sidebar(
 
     actionButton("reset_filters", "Reset all filters",
                  class = "btn-outline-secondary btn-sm w-100 mb-2"),
+    actionButton("share_link",
+                 tagList(bsicons::bs_icon("link-45deg"), " Copy share link"),
+                 class = "btn-outline-primary btn-sm w-100 mb-2",
+                 title = paste("Get a link that reproduces the current filters",
+                               "and tab — paste it to a colleague or bookmark it.")),
 
     accordion(
       open = c("Data", "Core filters"),
@@ -943,6 +948,75 @@ server <- function(input, output, session) {
   modal_variant <- reactiveVal(NULL)   # one-row data frame of the clicked variant
   modal_gene     <- reactiveVal(NULL)   # gene whose lollipop is on screen
 
+  # ---- shareable bookmark links ---------------------------------------------
+  # URL bookmarking (enableBookmarking = "url" on shinyApp) encodes the sidebar
+  # filters and active tab into a copy-pasteable link. We additionally save the
+  # open gene/variant when the link is generated from inside a protein modal, so
+  # the recipient reopens exactly the same view.
+  bookmark_with_variant <- reactiveVal(FALSE)
+
+  # Don't pollute the URL with one-shot click/event inputs or the file upload
+  # (a local path that wouldn't transfer, and would re-fire on restore).
+  setBookmarkExclude(c(
+    "upload", "share_link", "share_from_modal", "reset_filters",
+    "cell_gene", "cell_variant", "cell_sample",
+    "gene_view_variants", "gene_view_lollipop", "open_url"
+  ))
+
+  # Sidebar button: link with filters + tab only (no variant).
+  observeEvent(input$share_link, {
+    bookmark_with_variant(FALSE)
+    session$doBookmark()
+  })
+  # Modal button: link that also reopens the current gene/variant.
+  observeEvent(input$share_from_modal, {
+    bookmark_with_variant(TRUE)
+    session$doBookmark()
+  })
+
+  onBookmark(function(state) {
+    if (isTRUE(bookmark_with_variant())) {
+      state$values$bm_gene <- modal_gene()
+      r <- modal_variant()
+      state$values$bm_vkey <- if (!is.null(r) && nrow(r) > 0)
+        paste(r$CHROM, r$POS, r$REF, r$ALT) else NA_character_
+    }
+  })
+
+  onBookmarked(function(url) {
+    bookmark_with_variant(FALSE)
+    showBookmarkUrlModal(url)   # modal with the URL pre-selected for copying
+  })
+
+  # On restore the data-load observer above repopulates choices and resets the
+  # tier/genes/sample/CADD inputs, clobbering the restored values — so reapply
+  # them here, after the session is fully restored, then reopen any saved modal.
+  onRestored(function(state) {
+    ip <- state$input
+    if (!is.null(ip$tier))
+      updateCheckboxGroupInput(session, "tier", selected = ip$tier)
+    if (!is.null(ip$genes))
+      updateSelectizeInput(session, "genes", selected = ip$genes)
+    if (!is.null(ip$sample_pick))
+      updateSelectizeInput(session, "sample_pick", selected = ip$sample_pick)
+    if (!is.null(ip$cadd))
+      updateSliderInput(session, "cadd", value = ip$cadd)
+
+    g <- state$values$bm_gene
+    if (!is.null(g) && !is.na(g) && nzchar(g)) {
+      df <- isolate(raw())
+      vk <- state$values$bm_vkey
+      if (!is.null(df)) {
+        if (!is.null(vk) && !is.na(vk)) {
+          hit <- dplyr::filter(df, SYMBOL == g,
+                               paste(CHROM, POS, REF, ALT) == vk)
+          if (nrow(hit) > 0) { show_variant_modal(hit[1, ]); return() }
+        }
+        show_gene_lollipop_modal(g)
+      }
+    }
+  })
+
   # The variant detail block re-renders whenever the selected variant changes,
   # so clicking a different point in the lollipop updates the text at the top.
   output$variant_detail <- renderUI({
@@ -1117,7 +1191,15 @@ server <- function(input, output, session) {
                "samples). Boxes are Pfam protein domains; the selected ",
                "variant is ringed. Hover a point for detail, or click one to ",
                "switch the summary above to that variant."),
-      easyClose = TRUE, footer = modalButton("Close"), size = "xl"
+      easyClose = TRUE, size = "xl",
+      footer = tagList(
+        tags$button(
+          tagList(bsicons::bs_icon("link-45deg"), " Copy share link"),
+          class = "btn btn-outline-primary",
+          title = "Get a link that reopens this gene/variant with the current filters.",
+          onclick = paste0("Shiny.setInputValue('share_from_modal', Math.random(),",
+                           " {priority:'event'}); return false;")),
+        modalButton("Close"))
     ))
   }
 
@@ -1157,7 +1239,15 @@ server <- function(input, output, session) {
                "data (height = CADD, colour = ClinVar, size = number of ",
                "samples). Boxes are Pfam protein domains. Hover a point for ",
                "detail, or click one to load that variant above."),
-      easyClose = TRUE, footer = modalButton("Close"), size = "xl"
+      easyClose = TRUE, size = "xl",
+      footer = tagList(
+        tags$button(
+          tagList(bsicons::bs_icon("link-45deg"), " Copy share link"),
+          class = "btn btn-outline-primary",
+          title = "Get a link that reopens this gene/variant with the current filters.",
+          onclick = paste0("Shiny.setInputValue('share_from_modal', Math.random(),",
+                           " {priority:'event'}); return false;")),
+        modalButton("Close"))
     ))
   }
 
@@ -1299,4 +1389,4 @@ purrr_paste <- function(fc, fh, fca, clnsig, cadd, impact, cadd_thr) {
   }, character(1))
 }
 
-shinyApp(ui, server)
+shinyApp(ui, server, enableBookmarking = "url")
