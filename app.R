@@ -946,7 +946,7 @@ server <- function(input, output, session) {
              style = "margin-bottom:2px;"),
       div(class = "small text-muted mb-1",
           legend_dot("#D62728", "MacTel"), legend_dot("#1F77B4", "HSAN1"),
-          legend_dot("#9467BD", "Both"),   legend_dot("#9E9E9E", "Neither")),
+          legend_dot("#9467BD", "MacTel + HSAN1"),   legend_dot("#9E9E9E", "Control")),
       div(class = "mb-2", chips)
     )
   })
