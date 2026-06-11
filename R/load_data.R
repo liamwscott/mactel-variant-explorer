@@ -134,7 +134,6 @@ SAMPLE_TAG_COLS <- c(
   HSAN1_variant  = "HSAN1",
   Early_onset    = "Early onset",
   Low_PRS        = "Low PRS",
-  PHGDH_RV       = "PHGDH RV",
   Chr_5          = "Chr 5",
   Family_1       = "Family 1",
   Other          = "Other"
