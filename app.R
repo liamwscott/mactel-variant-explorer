@@ -830,24 +830,27 @@ server <- function(input, output, session) {
                 ds[1], ds[2], ds[3], ds[4]))
     } else NULL
 
-    tags$div(
-      style = "line-height:1.9;",
-      fld("Variant", sprintf("%s:%s %s>%s",
-                             row$CHROM, row$POS, row$REF, row$ALT)),
-      fld("HGVSc", row$HGVSc),
-      fld("HGVSp", row$HGVSp_short),
-      tags$br(),
-      fld("Impact", as.character(row$IMPACT)),
-      fld("Type", as.character(row$TYPE)),
-      fld("CADD", if (!is.na(row$CADD)) round(row$CADD, 1) else NA),
-      fld("REVEL", if (!is.na(row$REVEL)) round(row$REVEL, 3) else NA),
-      fld("AlphaMissense", row$am_class),
-      fld("SpliceAI", spliceai_disp),
-      tags$br(),
-      fld("ClinVar", as.character(row$CLNSIG_clean)),
-      fld("gnomAD AF", if (!is.na(row$gnomad_AF)) signif(row$gnomad_AF, 3) else NA),
-      fld("Inheritance", row$inheritance),
-      spliceai_breakdown
+    tagList(
+      tags$div(
+        style = "line-height:1.9;",
+        fld("Variant", sprintf("%s:%s %s>%s",
+                               row$CHROM, row$POS, row$REF, row$ALT)),
+        fld("HGVSc", row$HGVSc),
+        fld("HGVSp", row$HGVSp_short),
+        tags$br(),
+        fld("Impact", as.character(row$IMPACT)),
+        fld("Type", as.character(row$TYPE)),
+        fld("CADD", if (!is.na(row$CADD)) round(row$CADD, 1) else NA),
+        fld("REVEL", if (!is.na(row$REVEL)) round(row$REVEL, 3) else NA),
+        fld("AlphaMissense", row$am_class),
+        fld("SpliceAI", spliceai_disp),
+        tags$br(),
+        fld("ClinVar", as.character(row$CLNSIG_clean)),
+        fld("gnomAD AF", if (!is.na(row$gnomad_AF)) signif(row$gnomad_AF, 3) else NA),
+        fld("Inheritance", row$inheritance),
+        spliceai_breakdown
+      ),
+      tags$hr()
     )
   })
 
