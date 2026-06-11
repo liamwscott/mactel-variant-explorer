@@ -1007,6 +1007,19 @@ server <- function(input, output, session) {
     show_gene_modal(input$cell_gene)
   })
 
+  # "View all variants" in the gene modal -> set the gene filter to that gene
+  # (exactly as if picked from the sidebar) and jump to the Variant table.
+  # Global filters still apply, since this only adds to the gene selection.
+  observeEvent(input$gene_view_variants, {
+    removeModal()
+    df <- raw(); req(df)
+    updateSelectizeInput(session, "genes",
+                         choices = sort(unique(df$SYMBOL)),
+                         selected = input$gene_view_variants,
+                         server = TRUE)
+    bslib::nav_select("main_tabs", "Variant table")
+  })
+
   # Clicking a Variant cell -> variant detail + protein lollipop modal.
   observeEvent(input$cell_variant, {
     parts <- strsplit(input$cell_variant, "\\|\\|")[[1]]
