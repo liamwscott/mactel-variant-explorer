@@ -643,6 +643,9 @@ server <- function(input, output, session) {
                         c("Pathogenic", "Pathogenic/Likely_pathogenic",
                           "Likely_pathogenic"),
                         c("#FDDEDE", "#F7D6F7", "#FDE8D8"))) %>%
+      DT::formatStyle("AlphaMissense",
+                      backgroundColor = DT::styleEqual(
+                        "likely_pathogenic", "#FDE8D8")) %>%
       DT::formatStyle("Impact",
                       backgroundColor = DT::styleEqual("HIGH", "#FDDEDE"))
   })
