@@ -56,7 +56,12 @@ if (length(missing) > 0) {
 # --- 3. Launch the app -------------------------------------------------------
 message("\nStarting the MacTel Variant Explorer...")
 message("It will open in your web browser shortly.")
-message("To stop the app, close this window (or press Esc / Ctrl-C here).\n")
+message("To stop the app: close the browser tab, or close this window, ",
+        "or press Esc / Ctrl-C here.\n")
+
+# Quit the R process a couple of seconds after the last browser tab is closed,
+# so port 7766 is freed and the next launch starts cleanly (see app.R).
+options(mactel.autostop = TRUE)
 
 shiny::runApp(
   appDir        = app_dir,

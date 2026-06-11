@@ -27,11 +27,33 @@ else
 fi
 
 echo "Using R at: $RSCRIPT"
-"$RSCRIPT" launch.R
+
+# If a previous instance is still holding the port, stop it so this launch can
+# start cleanly (otherwise R fails with "address already in use").
+if command -v lsof >/dev/null 2>&1; then
+  STALE=$(lsof -ti tcp:7766 2>/dev/null)
+  if [ -n "$STALE" ]; then
+    echo "Stopping a previous instance still using port 7766..."
+    kill $STALE 2>/dev/null
+    sleep 1
+  fi
+fi
+
+# Run R in the background and wait, so that closing this window or pressing
+# Ctrl-C reliably stops the R process too (the trap kills it on the way out).
+APP_PID=""
+cleanup() { [ -n "$APP_PID" ] && kill "$APP_PID" 2>/dev/null; }
+trap cleanup EXIT HUP INT TERM
+
+"$RSCRIPT" launch.R &
+APP_PID=$!
+wait "$APP_PID"
+status=$?
 
 # Keep the window open if something went wrong so the user can read the error.
-status=$?
-if [ $status -ne 0 ]; then
+# (Codes above 128 mean the process was stopped by a signal — i.e. you closed
+# the window or pressed Ctrl-C — which is a normal exit, not an error.)
+if [ $status -ne 0 ] && [ $status -le 128 ]; then
   echo ""
   echo "The app exited with an error (code $status)."
   read -r -p "Press Return to close..."

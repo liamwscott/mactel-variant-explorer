@@ -27,6 +27,14 @@ if not defined RSCRIPT (
 )
 
 echo Using R at: %RSCRIPT%
+
+REM If a previous instance is still holding the port, stop it so this launch
+REM can start cleanly (otherwise R fails with "address already in use").
+for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":7766 " ^| findstr LISTENING') do (
+  echo Stopping a previous instance still using port 7766...
+  taskkill /F /PID %%P >nul 2>nul
+)
+
 "%RSCRIPT%" launch.R
 
 if %errorlevel% neq 0 (

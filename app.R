@@ -384,7 +384,7 @@ ui <- function(request) page_sidebar(
                     class = "mb-1", style = "font-weight:600;font-size:1.6rem;"),
             tags$p(class = "mb-0", style = "opacity:.92;font-size:1.02rem;",
               "Explore, filter, and prioritise rare genetic variants from the ",
-              "MacTel study — no command line required.")
+              "MacTel study")
           )
         )
       ),
@@ -395,8 +395,8 @@ ui <- function(request) page_sidebar(
                       tags$strong(" How to use this app")),
           tags$p(class = "text-body-secondary small mb-3",
             "Each row in the data is a ", tags$strong("variant"),
-            " (a single change in a person's DNA) seen in a ",
-            tags$strong("sample"), " (one participant), in a MacTel gene."),
+            " seen in a ",
+            tags$strong("sample"), " , in a MacTel gene."),
           landing_step(1, "Filter on the left",
             "Narrow by gene, sample group, predicted severity, or how rare the variant is. The counters up top update live."),
           landing_step(2, "Browse the tabs",
@@ -630,7 +630,28 @@ ui <- function(request) page_sidebar(
 # -----------------------------------------------------------------------------
 # SERVER
 # -----------------------------------------------------------------------------
+# Tracks how many browser sessions are connected, so the desktop launcher can
+# quit the R process (and free the port) once the last tab is closed.
+.autostop <- new.env()
+.autostop$n <- 0L
+
 server <- function(input, output, session) {
+
+  # When launched via the desktop launcher (which sets this option), shut the
+  # app down shortly after the last browser tab closes — this frees port 7766
+  # so the next launch starts cleanly. A 2-second grace period means a page
+  # refresh (old session ends, new one connects) does NOT trigger a shutdown.
+  if (isTRUE(getOption("mactel.autostop", FALSE))) {
+    .autostop$n <- .autostop$n + 1L
+    session$onSessionEnded(function() {
+      .autostop$n <- .autostop$n - 1L
+      quit_if_idle <- function() if (.autostop$n <= 0L) stopApp()
+      if (requireNamespace("later", quietly = TRUE))
+        later::later(quit_if_idle, delay = 2)
+      else
+        quit_if_idle()
+    })
+  }
 
   # ---- raw data (reactive on upload) ----------------------------------------
   raw <- reactiveVal(NULL)
