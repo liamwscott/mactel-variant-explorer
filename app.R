@@ -233,7 +233,22 @@ gloss <- function(title, summary, ...) {
 }
 
 ui <- function(request) page_sidebar(
-  title = "MacTel Variant Explorer",
+  title = tags$span(
+    class = "d-inline-flex align-items-center",
+    HTML(paste0(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" ',
+      'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ',
+      'stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;">',
+      '<path d="m10 16 1.5 1.5"/><path d="m14 8-1.5-1.5"/>',
+      '<path d="M15 2c-1.798 1.998-2.518 3.995-2.807 5.993"/>',
+      '<path d="m16.5 10.5 1 1"/><path d="m17 6-2.891-2.891"/>',
+      '<path d="M2 15c6.667-6 13.333 0 20-6"/><path d="m20 9 .891.891"/>',
+      '<path d="M3.109 14.109 4 15"/><path d="m6.5 12.5 1 1"/>',
+      '<path d="m7 18 2.891 2.891"/>',
+      '<path d="M9 22c1.798-1.998 2.518-3.995 2.807-5.993"/></svg>')),
+    tags$span("MacTel Variant Explorer", class = "ms-2",
+              style = "font-size:1.45rem;font-weight:700;letter-spacing:0.2px;")
+  ),
   theme = app_theme,
   # Non-fillable so cards keep their real heights and the page scrolls,
   # rather than squeezing every plot into a single viewport.
@@ -243,13 +258,10 @@ ui <- function(request) page_sidebar(
     width = 320,
     title = "Filters",
 
-    actionButton("reset_filters", "Reset all filters",
-                 class = "btn-outline-secondary btn-sm w-100 mb-2"),
-    actionButton("share_link",
-                 tagList(bsicons::bs_icon("link-45deg"), " Copy share link"),
-                 class = "btn-outline-primary btn-sm w-100 mb-2",
-                 title = paste("Get a link that reproduces the current filters",
-                               "and tab — paste it to a colleague or bookmark it.")),
+    actionButton("reset_filters",
+                 tagList(bsicons::bs_icon("arrow-counterclockwise"),
+                         " Reset all filters"),
+                 class = "btn-outline-primary btn-sm w-100 mb-2"),
 
     accordion(
       open = c("Data", "Core filters"),
@@ -302,7 +314,13 @@ ui <- function(request) page_sidebar(
         sliderInput("priority_cadd", "Flag: CADD ≥", min = 0, max = 60,
                     value = 20, step = 1)
       )
-    )
+    ),
+
+    actionButton("share_link",
+                 tagList(bsicons::bs_icon("link-45deg"), " Copy share link"),
+                 class = "btn-outline-primary btn-sm w-100 mt-3",
+                 title = paste("Get a link that reproduces the current filters",
+                               "and tab — paste it to a colleague or bookmark it."))
   ),
 
   # value boxes (compact)
@@ -1193,6 +1211,10 @@ server <- function(input, output, session) {
                "switch the summary above to that variant."),
       easyClose = TRUE, size = "xl",
       footer = tagList(
+        downloadButton("report_dl",
+                       tagList(bsicons::bs_icon("file-earmark-arrow-down"),
+                               " Download report"),
+                       class = "btn btn-primary"),
         tags$button(
           tagList(bsicons::bs_icon("link-45deg"), " Copy share link"),
           class = "btn btn-outline-primary",
@@ -1241,6 +1263,10 @@ server <- function(input, output, session) {
                "detail, or click one to load that variant above."),
       easyClose = TRUE, size = "xl",
       footer = tagList(
+        downloadButton("report_dl",
+                       tagList(bsicons::bs_icon("file-earmark-arrow-down"),
+                               " Download report"),
+                       class = "btn btn-primary"),
         tags$button(
           tagList(bsicons::bs_icon("link-45deg"), " Copy share link"),
           class = "btn btn-outline-primary",
@@ -1250,6 +1276,181 @@ server <- function(input, output, session) {
         modalButton("Close"))
     ))
   }
+
+  # ---- one-click report (self-contained HTML) ------------------------------
+  # Build a standalone, emailable HTML summary for the gene/variant currently
+  # shown in the protein modal. The lollipop is embedded as a base64 PNG so the
+  # file is fully self-contained — no internet or extra files needed to view it.
+  make_report_html <- function(gene, row) {
+    esc <- function(x) htmltools::htmlEscape(as.character(x))
+    has_row <- !is.null(row) && nrow(row) > 0
+
+    ginfo <- if (!is.null(GENE_INFO)) GENE_INFO[GENE_INFO$SYMBOL == gene, ] else NULL
+    tier  <- if (!is.null(ginfo) && nrow(ginfo) > 0) ginfo$Tier[1]
+             else if (has_row && !is.null(row$Tier)) row$Tier else NA
+    gdesc <- if (!is.null(ginfo) && nrow(ginfo) > 0 &&
+                 !is.na(ginfo$Gene_Description[1]) &&
+                 nzchar(ginfo$Gene_Description[1])) ginfo$Gene_Description[1] else NULL
+
+    # Lollipop -> base64-embedded PNG.
+    gdf <- dplyr::filter(raw(), SYMBOL == gene)
+    ddf <- if (!is.null(PROTEIN_DOMAINS))
+      dplyr::filter(PROTEIN_DOMAINS, SYMBOL == gene) else NULL
+    sel_key <- if (has_row) paste(row$CHROM, row$POS, row$REF, row$ALT) else NULL
+    p <- tryCatch(plot_variant_lollipop(gdf, ddf, gene, sel_key),
+                  error = function(e) NULL)
+    plot_html <- "<p class='muted'>No protein-coding positions to plot for this gene.</p>"
+    if (!is.null(p)) {
+      tmp <- tempfile(fileext = ".png")
+      ok <- tryCatch({
+        ggplot2::ggsave(tmp, p, width = 9, height = 3.8, dpi = 130, bg = "white")
+        TRUE
+      }, error = function(e) FALSE)
+      if (ok && file.exists(tmp)) {
+        uri <- paste0("data:image/png;base64,",
+                      jsonlite::base64_enc(readBin(tmp, "raw", file.info(tmp)$size)))
+        plot_html <- sprintf('<img class="plot" src="%s" alt="Protein lollipop"/>', uri)
+        unlink(tmp)
+      }
+    }
+
+    if (has_row) {
+      getn <- function(col) if (col %in% names(row))
+        suppressWarnings(as.numeric(row[[col]])) else NA_real_
+      ds <- c("acceptor gain" = getn("SpliceAI_pred_DS_AG"),
+              "acceptor loss" = getn("SpliceAI_pred_DS_AL"),
+              "donor gain"    = getn("SpliceAI_pred_DS_DG"),
+              "donor loss"    = getn("SpliceAI_pred_DS_DL"))
+      spliceai_disp <- if (!is.null(row$SpliceAI_max) && !is.na(row$SpliceAI_max)) {
+        m <- suppressWarnings(max(ds, na.rm = TRUE))
+        if (is.finite(m) && m > 0)
+          sprintf("%s (%s)", round(row$SpliceAI_max, 3), names(ds)[which.max(ds)])
+        else as.character(round(row$SpliceAI_max, 3))
+      } else NA
+      fields <- list(
+        c("Variant",       sprintf("%s:%s %s>%s", row$CHROM, row$POS, row$REF, row$ALT)),
+        c("HGVSc",         row$HGVSc),
+        c("HGVSp",         row$HGVSp_short),
+        c("Impact",        as.character(row$IMPACT)),
+        c("Type",          as.character(row$TYPE)),
+        c("CADD",          if (!is.na(row$CADD)) round(row$CADD, 1) else NA),
+        c("REVEL",         if (!is.na(row$REVEL)) round(row$REVEL, 3) else NA),
+        c("AlphaMissense", row$am_class),
+        c("SpliceAI",      spliceai_disp),
+        c("ClinVar",       as.character(row$CLNSIG_clean)),
+        c("gnomAD AF",     if (!is.na(row$gnomad_AF)) signif(row$gnomad_AF, 3) else NA),
+        c("Inheritance",   row$inheritance)
+      )
+      kv <- vapply(fields, function(f) {
+        v <- f[[2]]
+        if (is.null(v) || length(v) == 0 || is.na(v) || v == "") return("")
+        sprintf("<tr><th>%s</th><td>%s</td></tr>", esc(f[[1]]), esc(v))
+      }, character(1))
+      body_html <- sprintf("<table class='kv'>%s</table>", paste(kv, collapse = ""))
+
+      carriers <- gdf %>%
+        dplyr::filter(CHROM == row$CHROM, POS == row$POS,
+                      REF == row$REF, ALT == row$ALT) %>%
+        dplyr::distinct(family_id) %>% dplyr::arrange(family_id) %>%
+        dplyr::pull(family_id)
+      diag_colour <- function(fid) {
+        if (is.null(SAMPLE_INFO)) return("#9E9E9E")
+        r <- SAMPLE_INFO[SAMPLE_INFO$family_id == fid, , drop = FALSE]
+        if (nrow(r) == 0) return("#9E9E9E")
+        m <- isTRUE(r$is_mactel[1]); h <- isTRUE(r$is_hsan1[1])
+        if (m && h) "#9467BD" else if (m) "#D62728" else if (h) "#1F77B4" else "#9E9E9E"
+      }
+      if (length(carriers) > 0) {
+        pills <- paste(vapply(carriers, function(fid)
+          sprintf('<span class="pill" style="background:%s">%s</span>',
+                  diag_colour(fid), esc(fid)), character(1)), collapse = "")
+        body_html <- paste0(body_html,
+          sprintf("<h3>Carried by %d sample%s</h3>", length(carriers),
+                  if (length(carriers) == 1) "" else "s"),
+          "<p class='legend'>",
+          "<span class='dot' style='background:#D62728'></span>MacTel",
+          "<span class='dot' style='background:#1F77B4'></span>HSAN1",
+          "<span class='dot' style='background:#9467BD'></span>MacTel + HSAN1",
+          "<span class='dot' style='background:#9E9E9E'></span>Control</p>",
+          sprintf("<div class='pills'>%s</div>", pills))
+      }
+      title_line <- sprintf("%s &mdash; %s:%s %s&gt;%s", esc(gene), esc(row$CHROM),
+                            esc(row$POS), esc(row$REF), esc(row$ALT))
+    } else {
+      vsum <- gdf %>%
+        dplyr::group_by(CHROM, POS, REF, ALT) %>%
+        dplyr::summarise(HGVSp   = dplyr::first(HGVSp_short),
+                         Impact  = as.character(dplyr::first(IMPACT)),
+                         CADD    = suppressWarnings(max(CADD, na.rm = TRUE)),
+                         ClinVar = as.character(dplyr::first(CLNSIG_clean)),
+                         Samples = dplyr::n_distinct(family_id),
+                         .groups = "drop") %>%
+        dplyr::arrange(dplyr::desc(CADD))
+      vr <- vapply(seq_len(nrow(vsum)), function(i) {
+        r <- vsum[i, ]
+        sprintf("<tr><td>%s:%s %s&gt;%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>",
+                esc(r$CHROM), esc(r$POS), esc(r$REF), esc(r$ALT),
+                esc(r$HGVSp), esc(r$Impact),
+                esc(if (is.finite(r$CADD)) round(r$CADD, 1) else ""),
+                esc(r$ClinVar), esc(r$Samples))
+      }, character(1))
+      body_html <- sprintf(
+        "<h3>%d variant%s in this gene</h3><table class='vt'><thead><tr><th>Variant</th><th>HGVSp</th><th>Impact</th><th>CADD</th><th>ClinVar</th><th>Samples</th></tr></thead><tbody>%s</tbody></table>",
+        nrow(vsum), if (nrow(vsum) == 1) "" else "s", paste(vr, collapse = ""))
+      title_line <- esc(gene)
+    }
+
+    tier_badge <- if (!is.null(tier) && !is.na(tier))
+      sprintf("<span class='tier'>%s</span>", esc(tier)) else ""
+    desc_html <- if (!is.null(gdesc))
+      sprintf("<h3>Gene description</h3><p>%s</p>", esc(gdesc)) else ""
+
+    paste0(
+      "<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>",
+      sprintf("<title>MacTel report — %s</title>", esc(gene)),
+      "<style>",
+      "body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#222;max-width:900px;margin:24px auto;padding:0 18px;line-height:1.5;}",
+      "h1{font-size:1.5rem;margin:0;color:#1F4E79;}",
+      "h3{font-size:1.05rem;margin:18px 0 6px;color:#1F4E79;border-bottom:1px solid #eee;padding-bottom:3px;}",
+      ".sub{color:#666;font-size:0.85rem;margin:2px 0 14px;}",
+      ".tier{background:#1F4E79;color:#fff;border-radius:10px;padding:2px 8px;font-size:0.8rem;margin-left:8px;vertical-align:middle;}",
+      "table.kv{border-collapse:collapse;}table.kv th{text-align:left;padding:3px 14px 3px 0;color:#555;font-weight:600;white-space:nowrap;vertical-align:top;}table.kv td{padding:3px 0;}",
+      "table.vt{border-collapse:collapse;width:100%;font-size:0.88rem;}table.vt th,table.vt td{border:1px solid #e3e3e3;padding:4px 8px;text-align:left;}table.vt th{background:#f4f7fa;}",
+      "img.plot{max-width:100%;height:auto;border:1px solid #eee;border-radius:6px;margin-top:6px;}",
+      ".muted{color:#888;}",
+      ".pills{margin-top:4px;}.pill{display:inline-block;color:#fff;border-radius:10px;padding:2px 9px;margin:0 4px 4px 0;font-size:0.8rem;}",
+      ".legend{font-size:0.8rem;color:#666;margin:4px 0;}.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin:0 3px 0 10px;}",
+      ".foot{margin-top:24px;color:#999;font-size:0.78rem;border-top:1px solid #eee;padding-top:8px;}",
+      "</style></head><body>",
+      sprintf("<h1>%s%s</h1>", title_line, tier_badge),
+      sprintf("<p class='sub'>MacTel Variant Explorer report &middot; generated %s</p>", Sys.Date()),
+      body_html,
+      desc_html,
+      "<h3>Protein lollipop</h3>", plot_html,
+      "<p class='foot'>Generated by the MacTel Variant Explorer. Scores are ",
+      "computational predictions &mdash; interpret in clinical context.</p>",
+      "</body></html>"
+    )
+  }
+
+  output$report_dl <- downloadHandler(
+    filename = function() {
+      g <- modal_gene(); r <- modal_variant()
+      g <- if (is.null(g)) "gene" else g
+      if (!is.null(r) && nrow(r) > 0)
+        sprintf("MacTel_report_%s_%s-%s_%s.html", g, r$CHROM, r$POS, Sys.Date())
+      else
+        sprintf("MacTel_report_%s_%s.html", g, Sys.Date())
+    },
+    content = function(file) {
+      g <- modal_gene()
+      if (is.null(g)) {
+        writeLines("<html><body><p>No gene selected.</p></body></html>", file)
+        return(invisible())
+      }
+      writeLines(make_report_html(g, modal_variant()), file)
+    }
+  )
 
   output$lollipop <- plotly::renderPlotly({
     gene <- modal_gene(); req(gene)
