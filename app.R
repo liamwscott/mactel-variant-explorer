@@ -100,10 +100,18 @@ show_gene_modal <- function(symbol) {
     easyClose = TRUE,
     footer = tagList(
       tags$button(
-        tagList(bsicons::bs_icon("table"), " View all variants"),
+        tagList(bsicons::bs_icon("table"), " List all variants"),
         class = "btn btn-primary",
         onclick = sprintf(
           "Shiny.setInputValue('gene_view_variants','%s',{priority:'event'});return false;",
+          gsub("'", "\\\\'", symbol)
+        )
+      ),
+      tags$button(
+        tagList(bsicons::bs_icon("graph-up"), " View variants on protein"),
+        class = "btn btn-outline-primary",
+        onclick = sprintf(
+          "Shiny.setInputValue('gene_view_lollipop','%s',{priority:'event'});return false;",
           gsub("'", "\\\\'", symbol)
         )
       ),
