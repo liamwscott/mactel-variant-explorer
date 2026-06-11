@@ -964,7 +964,6 @@ server <- function(input, output, session) {
                     style = "margin-left:8px;vertical-align:middle;")
       ),
       uiOutput("variant_detail"),
-      tags$hr(),
       gene_desc,
       uiOutput("variant_links"),
       uiOutput("variant_samples"),
