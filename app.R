@@ -232,22 +232,25 @@ gloss <- function(title, summary, ...) {
   )
 }
 
+# Reusable DNA-helix logo (used in the title bar and the Genes value box).
+dna_icon <- function(size = 24) HTML(paste0(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="', size, '" height="', size, '" ',
+  'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ',
+  'stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;">',
+  '<path d="m10 16 1.5 1.5"/><path d="m14 8-1.5-1.5"/>',
+  '<path d="M15 2c-1.798 1.998-2.518 3.995-2.807 5.993"/>',
+  '<path d="m16.5 10.5 1 1"/><path d="m17 6-2.891-2.891"/>',
+  '<path d="M2 15c6.667-6 13.333 0 20-6"/><path d="m20 9 .891.891"/>',
+  '<path d="M3.109 14.109 4 15"/><path d="m6.5 12.5 1 1"/>',
+  '<path d="m7 18 2.891 2.891"/>',
+  '<path d="M9 22c1.798-1.998 2.518-3.995 2.807-5.993"/></svg>'))
+
 ui <- function(request) page_sidebar(
   title = tags$span(
     class = "d-inline-flex align-items-center",
-    HTML(paste0(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" ',
-      'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ',
-      'stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;">',
-      '<path d="m10 16 1.5 1.5"/><path d="m14 8-1.5-1.5"/>',
-      '<path d="M15 2c-1.798 1.998-2.518 3.995-2.807 5.993"/>',
-      '<path d="m16.5 10.5 1 1"/><path d="m17 6-2.891-2.891"/>',
-      '<path d="M2 15c6.667-6 13.333 0 20-6"/><path d="m20 9 .891.891"/>',
-      '<path d="M3.109 14.109 4 15"/><path d="m6.5 12.5 1 1"/>',
-      '<path d="m7 18 2.891 2.891"/>',
-      '<path d="M9 22c1.798-1.998 2.518-3.995 2.807-5.993"/></svg>')),
+    dna_icon(32),
     tags$span("MacTel Variant Explorer", class = "ms-2",
-              style = "font-size:1.45rem;font-weight:700;letter-spacing:0.2px;")
+              style = "font-size:1.75rem;font-weight:400;letter-spacing:0.2px;")
   ),
   theme = app_theme,
   # Non-fillable so cards keep their real heights and the page scrolls,
@@ -331,7 +334,7 @@ ui <- function(request) page_sidebar(
               showcase_layout = bslib::showcase_left_center(width = "3rem"),
               theme = "primary", max_height = "80px"),
     value_box("Genes", textOutput("vb_genes"),
-              showcase = bsicons::bs_icon("diagram-3"),
+              showcase = dna_icon(),
               showcase_layout = bslib::showcase_left_center(width = "3rem"),
               theme = "secondary", max_height = "80px"),
     value_box("Samples", textOutput("vb_samples"),
@@ -1214,7 +1217,7 @@ server <- function(input, output, session) {
         downloadButton("report_dl",
                        tagList(bsicons::bs_icon("file-earmark-arrow-down"),
                                " Download report"),
-                       class = "btn btn-primary"),
+                       class = "btn btn-primary", icon = NULL),
         tags$button(
           tagList(bsicons::bs_icon("link-45deg"), " Copy share link"),
           class = "btn btn-outline-primary",
@@ -1266,7 +1269,7 @@ server <- function(input, output, session) {
         downloadButton("report_dl",
                        tagList(bsicons::bs_icon("file-earmark-arrow-down"),
                                " Download report"),
-                       class = "btn btn-primary"),
+                       class = "btn btn-primary", icon = NULL),
         tags$button(
           tagList(bsicons::bs_icon("link-45deg"), " Copy share link"),
           class = "btn btn-outline-primary",
