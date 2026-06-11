@@ -978,12 +978,14 @@ server <- function(input, output, session) {
   }
 
   output$lollipop <- plotly::renderPlotly({
-    row <- modal_variant(); req(row)
-    gene <- row$SYMBOL
+    gene <- modal_gene(); req(gene)
     gdf <- dplyr::filter(raw(), SYMBOL == gene)
     ddf <- if (!is.null(PROTEIN_DOMAINS))
       dplyr::filter(PROTEIN_DOMAINS, SYMBOL == gene) else NULL
-    sel_key <- paste(row$CHROM, row$POS, row$REF, row$ALT)
+    # Only ring a variant once one has been selected (blank on the gene landing).
+    row <- modal_variant()
+    sel_key <- if (!is.null(row) && nrow(row) > 0)
+      paste(row$CHROM, row$POS, row$REF, row$ALT) else NULL
     p <- plot_variant_lollipop(gdf, ddf, gene, sel_key)
     validate(need(!is.null(p),
                   "No protein-coding (amino-acid) positions to plot for this gene."))
