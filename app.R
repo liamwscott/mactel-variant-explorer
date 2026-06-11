@@ -233,6 +233,9 @@ ui <- page_sidebar(
     width = 320,
     title = "Filters",
 
+    actionButton("reset_filters", "Reset all filters",
+                 class = "btn-outline-secondary btn-sm w-100 mb-2"),
+
     accordion(
       open = c("Data", "Core filters"),
 
@@ -240,9 +243,7 @@ ui <- page_sidebar(
         "Data", icon = bsicons::bs_icon("database"),
         helpText(textOutput("data_source_label")),
         fileInput("upload", "Upload a Cavalier CSV",
-                  accept = c(".csv"), buttonLabel = "Browse…"),
-        actionButton("reset_filters", "Reset all filters",
-                     class = "btn-outline-secondary btn-sm w-100")
+                  accept = c(".csv"), buttonLabel = "Browse…")
       ),
 
       accordion_panel(
