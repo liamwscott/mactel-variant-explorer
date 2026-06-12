@@ -21,9 +21,16 @@ The app opens in your browser. The first launch installs the required R packages
 automatically; later launches start in seconds. To stop the app, close the
 terminal window the launcher opened.
 
-> **macOS first-run note:** macOS may block a downloaded `.command` file. If
-> double-clicking shows a security warning, right-click (or Control-click) the
-> file → **Open** → **Open**. This is only needed once.
+> **macOS first-run note:** macOS blocks downloaded launchers it can't verify
+> (you'll see *"…command" Not Opened*). **Do not click "Move to Trash."** Instead:
+>
+> 1. Click **Done**.
+> 2. Open **System Settings → Privacy & Security**, scroll to the **Security**
+>    section, and click **Open Anyway** next to the blocked launcher.
+> 3. Authenticate, then click **Open Anyway** again. It won't ask after this.
+>
+> Or, in Terminal, clear the quarantine flag on the unzipped folder once:
+> `xattr -dr com.apple.quarantine "/path/to/mactel_variant_explorer"`
 
 ---
 
