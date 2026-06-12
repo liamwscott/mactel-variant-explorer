@@ -82,15 +82,6 @@ live variant / gene / family / ClinVar-P-LP counts for the current filter set.
 
 ---
 
-## Privacy
-
-⚠️ **`family_id` contains real family identifiers.**
-`data/candidate_variants.csv` and any `*.real.csv` are **git-ignored** and must
-never be committed. Only the de-identified `data/example_variants.csv`
-(family IDs replaced with `FAMILY001…`) lives in the repo.
-
----
-
 ## Layout
 
 ```
