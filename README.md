@@ -9,42 +9,33 @@ REVEL, gnomAD frequency, and combined "priority flags".
 
 ---
 
-## Quick start (collaborators) — just double-click
+## Quick start
 
-You do **not** need RStudio or any command-line knowledge.
-
-1. **Install R** (once): https://cran.r-project.org — pick your operating
-   system, download, and install with the defaults.
-2. **Unzip** the `mactel_variant_explorer` folder somewhere convenient.
+1. **Install R** (once): https://cran.r-project.org
+2. **Unzip** the `mactel_variant_explorer` folder.
 3. **Double-click the launcher** for your system:
    - **macOS** → `Run MacTel Explorer.command`
    - **Windows** → `Run MacTel Explorer.bat`
 
-The app opens in your web browser. The **first** launch installs the required R
-packages automatically (a few minutes, once only); later launches start in
-seconds. To stop the app, close the small black/terminal window the launcher
-opened.
+The app opens in your browser. The first launch installs the required R packages
+automatically; later launches start in seconds. To stop the app, close the
+terminal window the launcher opened.
 
 > **macOS first-run note:** macOS may block a downloaded `.command` file. If
-> double-clicking does nothing or shows a security warning, right-click (or
-> Control-click) the file → **Open** → **Open**. You only need to do this once.
+> double-clicking shows a security warning, right-click (or Control-click) the
+> file → **Open** → **Open**. This is only needed once.
 
 ---
 
-## Quick start (developers)
+## Running in RStudio
+
+Open the project folder in RStudio and run:
 
 ```r
-# from R / RStudio
 shiny::runApp("path/to/mactel_variant_explorer")
 ```
 
-or from the shell:
-
-```bash
-Rscript -e 'shiny::runApp("path/to/mactel_variant_explorer", launch.browser = TRUE)'
-```
-
-The app opens in your browser. On startup it loads, in order of preference:
+On startup the app loads, in order of preference:
 
 1. `data/candidate_variants.csv` — your real data (git-ignored, never committed)
 2. `data/example_variants.csv` — de-identified example shipped with the repo
