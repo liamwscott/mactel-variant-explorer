@@ -27,3 +27,6 @@ Thumbs.db
 # editor / tooling
 .vscode/
 .claude/
+
+# local working files (source spreadsheets; the committed .tsv is canonical)
+*.xlsx
