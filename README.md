@@ -14,8 +14,8 @@ REVEL, gnomAD frequency, and combined "priority flags".
 1. **Install R** (once): https://cran.r-project.org
 2. **Unzip** the `mactel_variant_explorer` folder.
 3. **Double-click the launcher** for your system:
-   - **macOS** → `Run MacTel Explorer.command`
-   - **Windows** → `Run MacTel Explorer.bat`
+   - **macOS** → `MacTel Explorer (Mac).app`
+   - **Windows** → `Run MacTel Explorer (Windows).bat`
 
 The app opens in your browser. The first launch installs the required R packages
 automatically; later launches start in seconds. To stop the app, close the
@@ -93,8 +93,9 @@ live variant / gene / family / ClinVar-P-LP counts for the current filter set.
 
 ```
 mactel_variant_explorer/
-├── Run MacTel Explorer.command # macOS double-click launcher
-├── Run MacTel Explorer.bat     # Windows double-click launcher
+├── MacTel Explorer (Mac).app       # macOS double-click launcher (DNA app icon)
+├── Run MacTel Explorer (Mac).command   # the script the .app runs (also works on its own)
+├── Run MacTel Explorer (Windows).bat   # Windows double-click launcher
 ├── launch.R                    # bootstrap: installs deps + starts the app
 ├── app.R                       # UI + server
 ├── R/

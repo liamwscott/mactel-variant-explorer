@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# =============================================================================
+# MacTel Explorer (Mac).app launcher executable.
+#
+# This thin wrapper just opens the project's "Run MacTel Explorer (Mac).command"
+# in Terminal, so the user sees startup progress / package-install logs and can
+# close the window to stop the app. All the real launch logic (finding R,
+# clearing the port, starting Shiny) lives in that .command file.
+# =============================================================================
+
+# Contents/MacOS -> project root is three levels up from this executable.
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT="$(cd "$DIR/../../.." && pwd)"
+
+CMD="$PROJECT/Run MacTel Explorer (Mac).command"
+
+if [ ! -f "$CMD" ]; then
+  osascript -e 'display alert "Launcher not found" message "Could not find \"Run MacTel Explorer (Mac).command\" next to this app. Keep the app inside the mactel_variant_explorer folder."'
+  exit 1
+fi
+
+# Make sure the .command is executable (it can lose the bit after unzip).
+chmod +x "$CMD" 2>/dev/null
+
+open -a Terminal "$CMD"

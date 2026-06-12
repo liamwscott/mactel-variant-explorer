@@ -1,10 +1,24 @@
 @echo off
 REM ==========================================================================
-REM Run MacTel Explorer.bat - Windows double-click launcher.
+REM Run MacTel Explorer (Windows).bat - Windows double-click launcher.
 REM
 REM Double-click this file to start the MacTel Variant Explorer. The app opens
-REM in your default web browser. Close this black window to stop the app.
+REM in your default web browser. Close this window to stop the app.
 REM ==========================================================================
+
+title MacTel Variant Explorer
+color 1F
+
+echo  ============================================================
+echo.
+echo                  MacTel Variant Explorer
+echo.
+echo      Starting up - the app will open in your browser.
+echo      Keep this window open while you use the app;
+echo      close it when you are finished to stop the app.
+echo.
+echo  ============================================================
+echo.
 
 REM Move into the folder this script lives in, so R finds app.R and data\.
 cd /d "%~dp0"
