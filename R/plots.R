@@ -214,6 +214,9 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL) {
   # highlight the clicked variant. If it has no amino-acid position it is not
   # protein-coding (e.g. intronic / splice / UTR) and cannot be drawn here, so
   # show a clear disclaimer instead — the variant detail above still applies.
+  # The flag is returned as an attribute so the interactive (plotly) view can
+  # add the same disclaimer (ggplot annotations are dropped by ggplotly).
+  sel_not_coding <- FALSE
   if (!is.null(sel_key)) {
     sel <- dplyr::filter(vv, key == sel_key)
     if (nrow(sel) > 0) {
@@ -227,6 +230,7 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL) {
                            nudge_y = ymax * 0.09, vjust = 0,
                            fontface = "bold", size = 3.3)
     } else {
+      sel_not_coding <- TRUE
       p <- p +
         ggplot2::annotate("label",
                           x = (1 + prot_len) / 2, y = ymax * 1.12,
@@ -236,7 +240,7 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL) {
     }
   }
 
-  p +
+  p <- p +
     ggplot2::scale_x_continuous(limits = c(1, prot_len),
                                 expand = ggplot2::expansion(mult = c(0.01, 0.03))) +
     ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.02, 0.24))) +
@@ -246,4 +250,7 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL) {
                          prot_len),
       x = "Amino-acid position", y = "CADD") +
     theme_app()
+
+  attr(p, "sel_not_coding") <- sel_not_coding
+  p
 }

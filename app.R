@@ -1575,8 +1575,21 @@ server <- function(input, output, session) {
     p <- plot_variant_lollipop(gdf, ddf, gene, sel_key)
     validate(need(!is.null(p),
                   "No protein-coding (amino-acid) positions to plot for this gene."))
-    plotly::ggplotly(p, tooltip = "text", source = "lollipop") %>%
+    gg <- plotly::ggplotly(p, tooltip = "text", source = "lollipop") %>%
       plotly::event_register("plotly_click")
+    # ggplotly drops ggplot annotations, so re-add the non-coding disclaimer
+    # as a native plotly annotation when the selected variant can't be drawn.
+    if (isTRUE(attr(p, "sel_not_coding"))) {
+      gg <- gg %>% plotly::layout(annotations = list(list(
+        x = 0.5, y = 1, xref = "paper", yref = "paper",
+        xanchor = "center", yanchor = "top",
+        text = "Selected variant is not protein coding",
+        showarrow = FALSE,
+        font = list(color = "#664d03", size = 14),
+        bgcolor = "#fff3cd", bordercolor = "#664d03",
+        borderwidth = 1, borderpad = 4)))
+    }
+    gg
   })
 
   # Clicking a point in the lollipop switches the active variant.
