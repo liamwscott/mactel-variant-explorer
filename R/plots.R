@@ -211,7 +211,9 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL) {
     ggplot2::geom_hline(yintercept = 20, linetype = "dashed",
                         colour = "red", linewidth = 0.6)
 
-  # highlight the clicked variant
+  # highlight the clicked variant. If it has no amino-acid position it is not
+  # protein-coding (e.g. intronic / splice / UTR) and cannot be drawn here, so
+  # show a clear disclaimer instead — the variant detail above still applies.
   if (!is.null(sel_key)) {
     sel <- dplyr::filter(vv, key == sel_key)
     if (nrow(sel) > 0) {
@@ -224,6 +226,13 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL) {
                            ggplot2::aes(x = aa, y = CADD, label = HGVSp_short),
                            nudge_y = ymax * 0.09, vjust = 0,
                            fontface = "bold", size = 3.3)
+    } else {
+      p <- p +
+        ggplot2::annotate("label",
+                          x = (1 + prot_len) / 2, y = ymax * 1.12,
+                          label = "Selected variant is not protein coding",
+                          fill = "#fff3cd", colour = "#664d03",
+                          fontface = "bold", size = 3.5)
     }
   }
 
