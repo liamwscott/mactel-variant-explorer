@@ -39,13 +39,13 @@ terminal window the launcher opened.
 Open the project folder in RStudio and run:
 
 ```r
-shiny::runApp("path/to/mactel_variant_explorer")
+shiny::runApp("path/to/mactel_variant_explorer/app")
 ```
 
 On startup the app loads, in order of preference:
 
-1. `data/candidate_variants.csv` — your real data (git-ignored, never committed)
-2. `data/example_variants.csv` — de-identified example shipped with the repo
+1. `app/data/candidate_variants.csv` — your real data (git-ignored, never committed)
+2. `app/data/example_variants.csv` — de-identified example shipped with the repo
 3. any CSV you upload via the sidebar **Data** panel
 
 ---
@@ -94,16 +94,19 @@ live variant / gene / family / ClinVar-P-LP counts for the current filter set.
 ```
 mactel_variant_explorer/
 ├── MacTel Explorer (Mac).app       # macOS double-click launcher (DNA app icon)
-├── Run MacTel Explorer (Mac).command   # the script the .app runs (also works on its own)
 ├── Run MacTel Explorer (Windows).bat   # Windows double-click launcher
-├── launch.R                    # bootstrap: installs deps + starts the app
-├── app.R                       # UI + server
-├── R/
-│   ├── load_data.R             # CSV load + cleaning, palettes, level orders
-│   └── plots.R                 # reusable ggplot builders
-├── data/
-│   ├── candidate_variants.csv  # REAL data (git-ignored)
-│   └── example_variants.csv    # de-identified example (committed)
+├── README.md
 ├── .gitignore
-└── README.md
+└── app/                            # all the app's code + data lives here
+    ├── Run MacTel Explorer (Mac).command  # script the .app runs (also works on its own)
+    ├── launch.R                    # bootstrap: installs deps + starts the app
+    ├── app.R                       # UI + server
+    ├── R/
+    │   ├── load_data.R             # CSV load + cleaning, palettes, level orders
+    │   └── plots.R                 # reusable ggplot builders
+    ├── scripts/
+    │   └── fetch_protein_domains.py  # dev tool: regenerate protein_domains.tsv
+    └── data/
+        ├── candidate_variants.csv  # REAL data (git-ignored)
+        └── example_variants.csv    # de-identified example (committed)
 ```

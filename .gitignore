@@ -2,13 +2,14 @@
 # PRIVACY: never commit real participant / family-level data
 # Only the de-identified example_variants.csv is allowed in the repo.
 # ---------------------------------------------------------------------------
-data/candidate_variants*.csv
-data/all_samples_fixed.txt
-data/*samples_fixed*
-data/*.real.csv
-data/*.real.tsv
-data/raw/
+# Match real-data files wherever they live (top level or app/data/).
+candidate_variants*.csv
+all_samples_fixed.txt
+*samples_fixed*
 *.real.csv
+*.real.tsv
+data/raw/
+app/data/raw/
 
 # R / RStudio
 .Rproj.user/

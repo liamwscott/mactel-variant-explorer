@@ -12,10 +12,10 @@
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT="$(cd "$DIR/../../.." && pwd)"
 
-CMD="$PROJECT/Run MacTel Explorer (Mac).command"
+CMD="$PROJECT/app/Run MacTel Explorer (Mac).command"
 
 if [ ! -f "$CMD" ]; then
-  osascript -e 'display alert "Launcher not found" message "Could not find \"Run MacTel Explorer (Mac).command\" next to this app. Keep the app inside the mactel_variant_explorer folder."'
+  osascript -e 'display alert "Launcher not found" message "Could not find the launch script inside the app/ folder. Keep this app inside the mactel_variant_explorer folder, next to the app/ folder."'
   exit 1
 fi
 

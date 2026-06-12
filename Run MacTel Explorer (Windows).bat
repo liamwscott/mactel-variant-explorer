@@ -20,8 +20,9 @@ echo.
 echo  ============================================================
 echo.
 
-REM Move into the folder this script lives in, so R finds app.R and data\.
-cd /d "%~dp0"
+REM The app's code and data live in the app\ subfolder; move there so R finds
+REM app.R, launch.R and data\.
+cd /d "%~dp0app"
 
 REM Locate Rscript: PATH first, then the usual install locations.
 set "RSCRIPT="
