@@ -144,6 +144,7 @@ COLUMN_TIPS <- c(
   "Tier"          = "Curated MacTel gene tier (Tier 1 = strongest evidence)",
   "Sample"        = "Sample / individual ID — click to open in the sample explorer",
   "Variant"       = "Genomic change CHROM:POS REF>ALT — click for the protein lollipop",
+  "Only in"       = "Which of the two compared files this variant is unique to",
   "HGVSc"         = "Coding-DNA change in HGVS c. notation",
   "HGVSp"         = "Protein change in HGVS p. notation",
   "Impact"        = "VEP-predicted consequence severity (HIGH / MODERATE / LOW / MODIFIER)",
@@ -373,6 +374,13 @@ ui <- function(request) page_sidebar(
                     value = 20, step = 1)
       )
     ),
+
+    tags$hr(class = "my-2"),
+    fileInput("compare_upload", "Compare variants",
+              accept = c(".csv"), buttonLabel = "Browse…"),
+    helpText(class = "small",
+             "Upload a second Cavalier CSV to open a 'Variant comparisons' ",
+             "tab listing variants present in only one of the two files."),
 
     actionButton("share_link",
                  tagList(bsicons::bs_icon("link-45deg"), " Copy share link"),
@@ -699,6 +707,7 @@ server <- function(input, output, session) {
   # ---- raw data (reactive on upload) ----------------------------------------
   raw <- reactiveVal(NULL)
   src_label <- reactiveVal("")
+  main_name <- reactiveVal(basename(startup_path))   # label for the active file
 
   observe({
     df <- load_annotated(startup_path)
@@ -717,12 +726,132 @@ server <- function(input, output, session) {
                    })
     if (!is.null(df)) {
       raw(df)
+      main_name(input$upload$name)
       src_label(sprintf("%s  (%d variants, uploaded)",
                         input$upload$name, nrow(df)))
     }
   })
 
   output$data_source_label <- renderText(paste("Source:", src_label()))
+
+  # ---- variant comparison (second uploaded file) ----------------------------
+  # Uploading a second CSV opens a "Variant comparisons" tab listing variants
+  # present in only one of the two files (compared on CHROM:POS:REF:ALT).
+  compare_raw       <- reactiveVal(NULL)
+  compare_name      <- reactiveVal(NULL)
+  compare_tab_added <- reactiveVal(FALSE)
+
+  observeEvent(input$compare_upload, {
+    req(input$compare_upload)
+    df <- tryCatch(load_annotated(input$compare_upload$datapath),
+                   error = function(e) {
+                     showNotification(paste("Could not load comparison file:",
+                                            e$message),
+                                      type = "error", duration = 8)
+                     NULL
+                   })
+    req(!is.null(df))
+    compare_raw(df)
+    compare_name(input$compare_upload$name)
+
+    if (!isTRUE(compare_tab_added())) {
+      bslib::nav_insert(
+        id = "main_tabs",
+        target = "Variant table", position = "after", select = TRUE,
+        session = session,
+        nav = nav_panel(
+          "Variant comparisons",
+          icon = bsicons::bs_icon("intersect"),
+          card(
+            card_header(
+              "Variants unique to one file",
+              tags$span(bsicons::bs_icon("info-circle"),
+                        textOutput("compare_summary", inline = TRUE),
+                        class = "text-muted small ms-2"),
+              downloadButton("dl_compare", "Download CSV",
+                             class = "btn-sm btn-primary float-end")
+            ),
+            DT::DTOutput("compare_table")
+          )
+        )
+      )
+      compare_tab_added(TRUE)
+    } else {
+      bslib::nav_select("main_tabs", "Variant comparisons", session = session)
+    }
+  })
+
+  # Variants in exactly one file, de-duplicated to one row per variant, tagged
+  # with which file they are unique to.
+  compare_diff <- reactive({
+    a <- raw(); b <- compare_raw()
+    req(a, b)
+    ak <- paste(a$CHROM, a$POS, a$REF, a$ALT)
+    bk <- paste(b$CHROM, b$POS, b$REF, b$ALT)
+    a_only <- a[!(ak %in% bk), , drop = FALSE] %>%
+      dplyr::distinct(CHROM, POS, REF, ALT, .keep_all = TRUE) %>%
+      dplyr::mutate(cmp_src = main_name())
+    b_only <- b[!(bk %in% ak), , drop = FALSE] %>%
+      dplyr::distinct(CHROM, POS, REF, ALT, .keep_all = TRUE) %>%
+      dplyr::mutate(cmp_src = compare_name())
+    dplyr::bind_rows(a_only, b_only)
+  })
+
+  display_compare <- function(df, links = TRUE) {
+    gene_col    <- if (links) link_gene(df$SYMBOL) else df$SYMBOL
+    variant_col <- if (links) link_variant(df$CHROM, df$POS, df$REF, df$ALT)
+                   else sprintf("%s:%s %s>%s", df$CHROM, df$POS, df$REF, df$ALT)
+    df %>%
+      dplyr::transmute(
+        `Only in` = cmp_src,
+        Gene = gene_col, Tier = Tier,
+        Variant = variant_col,
+        HGVSc, HGVSp = HGVSp_short,
+        Impact = IMPACT, Type = TYPE,
+        CADD = round(CADD, 1),
+        REVEL = round(REVEL, 3),
+        AlphaMissense = am_class,
+        SpliceAI = round(SpliceAI_max, 3),
+        ClinVar = CLNSIG_clean,
+        gnomAD_AF = signif(gnomad_AF, 3),
+        Inheritance = inheritance
+      )
+  }
+
+  output$compare_summary <- renderText({
+    d <- compare_diff(); req(d)
+    na <- sum(d$cmp_src == main_name())
+    nb <- sum(d$cmp_src == compare_name())
+    sprintf(" %d only in %s · %d only in %s",
+            na, main_name(), nb, compare_name())
+  })
+
+  output$compare_table <- DT::renderDT({
+    d <- compare_diff()
+    validate(need(nrow(d) > 0,
+                  "No differences — both files contain the same variants."))
+    DT::datatable(display_compare(d),
+                  filter = "top", rownames = FALSE,
+                  selection = "none", escape = FALSE,
+                  extensions = "Buttons",
+                  options = list(pageLength = 25, scrollX = TRUE,
+                                 dom = "Bfrtip", buttons = c("copy", "csv"),
+                                 headerCallback = header_tips_cb())) %>%
+      DT::formatStyle("Only in", fontWeight = "bold") %>%
+      DT::formatStyle("ClinVar",
+                      backgroundColor = DT::styleEqual(
+                        c("Pathogenic", "Pathogenic/Likely_pathogenic",
+                          "Likely_pathogenic"),
+                        c("#FDDEDE", "#F7D6F7", "#FDE8D8"))) %>%
+      DT::formatStyle("Impact",
+                      backgroundColor = DT::styleEqual("HIGH", "#FDDEDE"))
+  })
+
+  output$dl_compare <- downloadHandler(
+    filename = function() sprintf("MacTel_variant_comparison_%s.csv", Sys.Date()),
+    content  = function(file)
+      readr::write_csv(display_compare(compare_diff(), links = FALSE), file)
+  )
 
   # ---- populate dynamic filter choices when data changes --------------------
   observeEvent(raw(), {
