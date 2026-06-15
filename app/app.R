@@ -1410,9 +1410,22 @@ server <- function(input, output, session) {
                   error = function(e) NULL)
     plot_html <- "<p class='muted'>No protein-coding positions to plot for this gene.</p>"
     if (!is.null(p)) {
+      # For the static report, put the legend below the plot so the lollipop
+      # uses the full page width (the right-hand legend squeezes it otherwise).
+      p_png <- p +
+        ggplot2::theme(
+          legend.position = "bottom",
+          legend.box      = "vertical",
+          legend.title    = ggplot2::element_text(size = 9),
+          legend.text     = ggplot2::element_text(size = 8)) +
+        ggplot2::guides(
+          colour = ggplot2::guide_legend(order = 1, nrow = 2, byrow = TRUE,
+                                         override.aes = list(size = 3.5)),
+          size   = ggplot2::guide_legend(order = 2, nrow = 1),
+          fill   = ggplot2::guide_legend(order = 3, ncol = 1))
       tmp <- tempfile(fileext = ".png")
       ok <- tryCatch({
-        ggplot2::ggsave(tmp, p, width = 9, height = 3.8, dpi = 130, bg = "white")
+        ggplot2::ggsave(tmp, p_png, width = 9, height = 5.6, dpi = 130, bg = "white")
         TRUE
       }, error = function(e) FALSE)
       if (ok && file.exists(tmp)) {
@@ -1492,7 +1505,8 @@ server <- function(input, output, session) {
                          Impact  = as.character(dplyr::first(IMPACT)),
                          CADD    = suppressWarnings(max(CADD, na.rm = TRUE)),
                          ClinVar = as.character(dplyr::first(CLNSIG_clean)),
-                         Samples = dplyr::n_distinct(family_id),
+                         # one row per variant; list every sample carrying it
+                         Samples = paste(sort(unique(family_id)), collapse = ", "),
                          .groups = "drop") %>%
         dplyr::arrange(dplyr::desc(CADD))
       vr <- vapply(seq_len(nrow(vsum)), function(i) {
@@ -1504,7 +1518,7 @@ server <- function(input, output, session) {
                 esc(r$ClinVar), esc(r$Samples))
       }, character(1))
       body_html <- sprintf(
-        "<h3>%d variant%s in this gene</h3><table class='vt'><thead><tr><th>Variant</th><th>HGVSp</th><th>Impact</th><th>CADD</th><th>ClinVar</th><th>Samples</th></tr></thead><tbody>%s</tbody></table>",
+        "<h3>%d variant%s in this gene</h3><table class='vt'><thead><tr><th>Variant</th><th>HGVSp</th><th>Impact</th><th>CADD</th><th>ClinVar</th><th>Sample(s)</th></tr></thead><tbody>%s</tbody></table>",
         nrow(vsum), if (nrow(vsum) == 1) "" else "s", paste(vr, collapse = ""))
       title_line <- esc(gene)
     }
