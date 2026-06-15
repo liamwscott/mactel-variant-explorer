@@ -346,7 +346,11 @@ ui <- function(request) page_sidebar(
                            inline = TRUE),
         checkboxGroupInput("type", "Variant type",
                            choices = TYPE_LEVELS, selected = TYPE_LEVELS,
-                           inline = TRUE)
+                           inline = TRUE),
+        checkboxInput("exclude_am_benign",
+                      "Exclude AlphaMissense benign / likely-benign", FALSE),
+        checkboxInput("exclude_clnsig_benign",
+                      "Exclude ClinVar benign / likely-benign", FALSE)
       ),
 
       accordion_panel(
@@ -876,6 +880,8 @@ server <- function(input, output, session) {
     updateCheckboxGroupInput(session, "impact", selected = IMPACT_LEVELS)
     updateCheckboxGroupInput(session, "type", selected = TYPE_LEVELS)
     updateCheckboxGroupInput(session, "clnsig", selected = CLNSIG_LEVELS)
+    updateCheckboxInput(session, "exclude_am_benign", value = FALSE)
+    updateCheckboxInput(session, "exclude_clnsig_benign", value = FALSE)
     updateSliderInput(session, "cadd", value = 0)
     updateSliderInput(session, "revel", value = 0)
     updateSliderInput(session, "gnomad", value = 0)
@@ -899,6 +905,11 @@ server <- function(input, output, session) {
       df <- dplyr::filter(df, as.character(TYPE) %in% input$type)
     if (length(input$clnsig) > 0)
       df <- dplyr::filter(df, as.character(CLNSIG_clean) %in% input$clnsig)
+    if (isTRUE(input$exclude_am_benign))
+      df <- dplyr::filter(df, is.na(am_class) |
+                              !tolower(am_class) %in% c("benign", "likely_benign"))
+    if (isTRUE(input$exclude_clnsig_benign))
+      df <- dplyr::filter(df, as.character(CLNSIG_clean) != "Benign/Likely_benign")
 
     df <- dplyr::filter(df, is.na(CADD) | CADD >= input$cadd)
     if (input$revel > 0)
