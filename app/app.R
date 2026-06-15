@@ -353,10 +353,9 @@ ui <- function(request) page_sidebar(
         "ClinVar & scores", icon = bsicons::bs_icon("sliders"),
         checkboxGroupInput("clnsig", "ClinVar class",
                            choices = CLNSIG_LEVELS, selected = CLNSIG_LEVELS),
-        checkboxInput("exclude_clnsig_benign",
-                      "Exclude ClinVar benign / likely-benign", FALSE),
+        tags$label("AlphaMissense", class = "control-label"),
         checkboxInput("exclude_am_benign",
-                      "Exclude AlphaMissense benign / likely-benign", FALSE),
+                      "Exclude benign / likely-benign", FALSE),
         sliderInput("cadd", "CADD ≥",
                     min = 0, max = 60, value = 0, step = 1),
         sliderInput("revel", "REVEL ≥",
@@ -881,7 +880,6 @@ server <- function(input, output, session) {
     updateCheckboxGroupInput(session, "type", selected = TYPE_LEVELS)
     updateCheckboxGroupInput(session, "clnsig", selected = CLNSIG_LEVELS)
     updateCheckboxInput(session, "exclude_am_benign", value = FALSE)
-    updateCheckboxInput(session, "exclude_clnsig_benign", value = FALSE)
     updateSliderInput(session, "cadd", value = 0)
     updateSliderInput(session, "revel", value = 0)
     updateSliderInput(session, "gnomad", value = 0)
@@ -908,8 +906,6 @@ server <- function(input, output, session) {
     if (isTRUE(input$exclude_am_benign))
       df <- dplyr::filter(df, is.na(am_class) |
                               !tolower(am_class) %in% c("benign", "likely_benign"))
-    if (isTRUE(input$exclude_clnsig_benign))
-      df <- dplyr::filter(df, as.character(CLNSIG_clean) != "Benign/Likely_benign")
 
     df <- dplyr::filter(df, is.na(CADD) | CADD >= input$cadd)
     if (input$revel > 0)
