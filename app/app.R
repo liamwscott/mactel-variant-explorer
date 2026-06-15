@@ -346,17 +346,17 @@ ui <- function(request) page_sidebar(
                            inline = TRUE),
         checkboxGroupInput("type", "Variant type",
                            choices = TYPE_LEVELS, selected = TYPE_LEVELS,
-                           inline = TRUE),
-        checkboxInput("exclude_am_benign",
-                      "Exclude AlphaMissense benign / likely-benign", FALSE),
-        checkboxInput("exclude_clnsig_benign",
-                      "Exclude ClinVar benign / likely-benign", FALSE)
+                           inline = TRUE)
       ),
 
       accordion_panel(
         "ClinVar & scores", icon = bsicons::bs_icon("sliders"),
         checkboxGroupInput("clnsig", "ClinVar class",
                            choices = CLNSIG_LEVELS, selected = CLNSIG_LEVELS),
+        checkboxInput("exclude_clnsig_benign",
+                      "Exclude ClinVar benign / likely-benign", FALSE),
+        checkboxInput("exclude_am_benign",
+                      "Exclude AlphaMissense benign / likely-benign", FALSE),
         sliderInput("cadd", "CADD ≥",
                     min = 0, max = 60, value = 0, step = 1),
         sliderInput("revel", "REVEL ≥",
