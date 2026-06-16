@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 #
 # build_igv_reports_folder.sh
 # -----------------------------------------------------------------------------
@@ -11,25 +11,27 @@
 #
 #     <dest>/<SAMPLE>/<SAMPLE>.igv_report.html
 #
-# Point the app's "IGV reports folder" picker at <dest>.
+# Point the app's "IGV reports folder" picker at <dest>. (Naming the dest
+# "igv_reports" under app/data lets the app auto-detect it on startup.)
 #
 # Usage:
 #   tools/build_igv_reports_folder.sh <source_folder> [dest_folder]
 #
 # Examples:
-#   tools/build_igv_reports_folder.sh ~/Downloads/by_family
-#   tools/build_igv_reports_folder.sh ~/Downloads/by_family ./igv_reports_slim
+#   sh tools/build_igv_reports_folder.sh ~/Downloads/by_family
+#   sh tools/build_igv_reports_folder.sh ~/Downloads/by_family app/data/igv_reports
 #
 # Notes:
+#   - POSIX sh compatible (runs under sh, bash, or dash).
 #   - Reports render via an online igv.js CDN, so collaborators need internet.
 #   - Only samples that actually have a report are copied (others are skipped).
 # -----------------------------------------------------------------------------
-set -euo pipefail
+set -eu
 
 SRC="${1:-}"
 DEST="${2:-./igv_reports}"
 
-if [[ -z "$SRC" || ! -d "$SRC" ]]; then
+if [ -z "$SRC" ] || [ ! -d "$SRC" ]; then
   echo "Usage: $0 <source_folder> [dest_folder]" >&2
   echo "  Copies only *.igv_report.html (with their per-sample sub-folders)" >&2
   echo "  into <dest_folder> (default: ./igv_reports) for sharing." >&2
@@ -38,14 +40,14 @@ fi
 
 mkdir -p "$DEST"
 
-count=0
-while IFS= read -r -d '' f; do
-  sample="$(basename "$(dirname "$f")")"
+# IFS=newline + read -r handles source paths that contain spaces.
+find "$SRC" -name "*.igv_report.html" -print | while IFS= read -r f; do
+  sample=$(basename "$(dirname "$f")")
   mkdir -p "$DEST/$sample"
   cp "$f" "$DEST/$sample/"
-  count=$((count + 1))
-done < <(find "$SRC" -name "*.igv_report.html" -print0)
+done
 
+count=$(find "$DEST" -name "*.igv_report.html" | wc -l | tr -d ' ')
 echo "Copied ${count} IGV report(s) into: ${DEST}"
 if command -v du >/dev/null 2>&1; then
   echo "Total size: $(du -sh "$DEST" | cut -f1)"
