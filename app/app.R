@@ -25,6 +25,7 @@ library(stringr)
 library(forcats)
 library(scales)
 library(plotly)
+library(shinyFiles)
 
 # Files in R/ are auto-sourced by Shiny, but source explicitly so the app also
 # works when launched via shiny::runApp() from any working directory.
@@ -36,6 +37,13 @@ for (f in list.files(file.path(app_dir, "R"), pattern = "\\.R$", full.names = TR
 DEFAULT_REAL    <- file.path(app_dir, "data", "candidate_variants_tier1_2.csv")
 DEFAULT_EXAMPLE <- file.path(app_dir, "data", "example_variants.csv")
 startup_path    <- if (file.exists(DEFAULT_REAL)) DEFAULT_REAL else DEFAULT_EXAMPLE
+
+# Optional folder of per-sample IGV reports (one sub-folder per individual,
+# each holding <SAMPLE>.igv_report.html). Auto-detected if bundled under
+# data/igv_reports; otherwise the user points the app at it from the sidebar.
+# Holds real sample data, so it is never committed — pointed-to at runtime.
+DEFAULT_IGV_DIR <- file.path(app_dir, "data", "igv_reports")
+igv_startup     <- if (dir.exists(DEFAULT_IGV_DIR)) DEFAULT_IGV_DIR else ""
 
 # Gene info (Tier + descriptions; gene symbols only, no participant data) ------
 GENE_INFO_PATH <- file.path(app_dir, "data", "gene_info.tsv")
@@ -329,7 +337,20 @@ ui <- function(request) page_sidebar(
         "Data", icon = bsicons::bs_icon("database"),
         helpText(textOutput("data_source_label")),
         fileInput("upload", "Upload a Cavalier CSV",
-                  accept = c(".csv"), buttonLabel = "Browse…")
+                  accept = c(".csv"), buttonLabel = "Browse…"),
+        tags$label("IGV reports folder", class = "control-label d-block"),
+        shinyFiles::shinyDirButton(
+          "igv_dir_btn",
+          label = "Choose folder…",
+          title = "Select the folder of per-sample IGV reports",
+          icon = bsicons::bs_icon("folder2-open"),
+          class = "btn-outline-primary btn-sm w-100"),
+        div(class = "small text-muted mt-1 text-break",
+            textOutput("igv_dir_label", inline = TRUE)),
+        helpText(class = "small",
+                 "Folder with one sub-folder per sample, each containing ",
+                 "<SAMPLE>.igv_report.html. Used by the Sample explorer tab. ",
+                 "Requires an internet connection to render.")
       ),
 
       accordion_panel(
@@ -674,6 +695,16 @@ ui <- function(request) page_sidebar(
                              class = "btn-sm btn-primary float-end")
             ),
             DT::DTOutput("sample_table_all")
+          ),
+          card(
+            card_header(
+              "IGV report",
+              tags$span(bsicons::bs_icon("info-circle"),
+                        " read-level view of every variant this sample carries ",
+                        "(requires an internet connection)",
+                        class = "text-muted small ms-2")
+            ),
+            uiOutput("sample_igv")
           )
         )
       )
@@ -1120,6 +1151,77 @@ server <- function(input, output, session) {
     if (is.null(input$sample_pick) || input$sample_pick == "")
       "Select a sample to see its variants"
     else sprintf("Variants in sample %s", input$sample_pick)
+  })
+
+  # ---- per-sample IGV report ------------------------------------------------
+  # Point the app at a folder of igv-reports HTMLs (one sub-folder per sample)
+  # using a point-and-click folder picker (shinyFiles). The chosen folder is
+  # exposed over HTTP via a resource path so it can be shown in an <iframe>.
+  # The display family_id has its trailing "RLA" stripped, but the folders keep
+  # it, so we probe both the displayed ID and "<id>RLA".
+  igv_volumes <- c(Home = path.expand("~"), shinyFiles::getVolumes()())
+
+  # Register a folder and remember it; returns the normalised path (or NULL).
+  use_igv_root <- function(d) {
+    if (length(d) == 1 && nzchar(d) && dir.exists(d)) {
+      root <- normalizePath(d)
+      suppressWarnings(shiny::addResourcePath("igv_reports", root))
+      igv_root(root)
+      return(root)
+    }
+    NULL
+  }
+
+  # Seed with the auto-detected folder (data/igv_reports) when present.
+  igv_root <- reactiveVal(NULL)
+  isolate(if (nzchar(igv_startup) && dir.exists(igv_startup))
+            use_igv_root(igv_startup))
+
+  shinyFiles::shinyDirChoose(input, "igv_dir_btn", roots = igv_volumes,
+                             session = session, allowDirCreate = FALSE)
+  observeEvent(input$igv_dir_btn, {
+    req(is.list(input$igv_dir_btn))
+    d <- shinyFiles::parseDirPath(igv_volumes, input$igv_dir_btn)
+    use_igv_root(d)
+  })
+
+  output$igv_dir_label <- renderText({
+    root <- igv_root()
+    if (is.null(root)) "No folder selected" else root
+  })
+
+  # Resolve the on-disk folder name for the picked sample (NULL if no report).
+  igv_sample_dir <- function(root, sample) {
+    for (s in unique(c(sample, paste0(sample, "RLA")))) {
+      f <- file.path(root, s, paste0(s, ".igv_report.html"))
+      if (file.exists(f)) return(s)
+    }
+    NULL
+  }
+
+  output$sample_igv <- renderUI({
+    note <- function(msg)
+      tags$p(class = "text-muted small mb-0", msg)
+
+    if (is.null(input$sample_pick) || input$sample_pick == "")
+      return(note("Choose a sample from the dropdown."))
+    root <- igv_root()
+    if (is.null(root))
+      return(note(paste("Set the 'IGV reports folder' in the Data panel",
+                        "to view read-level IGV reports here.")))
+
+    hit <- igv_sample_dir(root, input$sample_pick)
+    if (is.null(hit))
+      return(note(sprintf("No IGV report found for sample %s.",
+                          input$sample_pick)))
+
+    src <- sprintf("igv_reports/%s/%s.igv_report.html",
+                   utils::URLencode(hit, reserved = TRUE),
+                   utils::URLencode(hit, reserved = TRUE))
+    tags$iframe(
+      src = src, loading = "lazy",
+      style = paste("width:100%; height:680px; border:1px solid #dee2e6;",
+                    "border-radius:4px;"))
   })
 
   # Data-group tags for the picked sample (Mito_haplo deliberately excluded).

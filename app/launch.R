@@ -31,7 +31,8 @@ setwd(app_dir)
 
 # --- 2. Ensure required packages are installed -------------------------------
 required <- c("shiny", "bslib", "DT", "ggplot2", "dplyr", "tidyr", "readr",
-              "stringr", "forcats", "scales", "plotly", "bsicons", "jsonlite")
+              "stringr", "forcats", "scales", "plotly", "bsicons", "jsonlite",
+              "shinyFiles")
 
 installed <- rownames(installed.packages())
 missing   <- setdiff(required, installed)
