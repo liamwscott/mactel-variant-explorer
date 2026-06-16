@@ -38,6 +38,17 @@ DEFAULT_REAL    <- file.path(app_dir, "data", "candidate_variants_tier1_2.csv")
 DEFAULT_EXAMPLE <- file.path(app_dir, "data", "example_variants.csv")
 startup_path    <- if (file.exists(DEFAULT_REAL)) DEFAULT_REAL else DEFAULT_EXAMPLE
 
+# DEBUG mode -----------------------------------------------------------------
+# When OFF (the default) the app starts with NO variant file loaded — the user
+# must explicitly upload/select their own Cavalier CSV. This guards against
+# accidentally working with a stale or bundled file.
+# When ON, the app auto-loads `startup_path` at launch (handy for development).
+# Turn it on with either:
+#   options(mactel.debug = TRUE)         # in R, before runApp()
+#   MACTEL_DEBUG=TRUE  (environment variable)
+DEBUG <- isTRUE(getOption("mactel.debug", FALSE)) ||
+  identical(toupper(Sys.getenv("MACTEL_DEBUG", "")), "TRUE")
+
 # Optional folder of per-sample IGV reports (one sub-folder per individual,
 # each holding <SAMPLE>.igv_report.html). Auto-detected if bundled under
 # data/igv_reports; otherwise the user points the app at it from the sidebar.
@@ -740,15 +751,20 @@ server <- function(input, output, session) {
 
   # ---- raw data (reactive on upload) ----------------------------------------
   raw <- reactiveVal(NULL)
-  src_label <- reactiveVal("")
-  main_name <- reactiveVal(basename(startup_path))   # label for the active file
+  src_label <- reactiveVal("No file loaded — upload a Cavalier CSV to begin")
+  main_name <- reactiveVal("")                       # label for the active file
 
-  observe({
-    df <- load_annotated(startup_path)
-    raw(df)
-    src_label(sprintf("%s  (%d variants)",
-                      basename(startup_path), nrow(df)))
-  })
+  # Auto-load the startup file ONLY in DEBUG mode. By default nothing is loaded
+  # until the user explicitly uploads/selects a CSV (see DEBUG flag near top).
+  if (isTRUE(DEBUG)) {
+    main_name(basename(startup_path))
+    observe({
+      df <- load_annotated(startup_path)
+      raw(df)
+      src_label(sprintf("%s  (%d variants, DEBUG auto-load)",
+                        basename(startup_path), nrow(df)))
+    })
+  }
 
   observeEvent(input$upload, {
     req(input$upload)
