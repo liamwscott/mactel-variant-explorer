@@ -6,6 +6,9 @@
 candidate_variants*.csv
 all_samples_fixed.txt
 *samples_fixed*
+# Sample-level info / sample list (kept local, not version-controlled).
+example_sample_info.tsv
+app/data/example_sample_info.tsv
 *.real.csv
 *.real.tsv
 data/raw/
