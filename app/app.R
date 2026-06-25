@@ -357,11 +357,7 @@ ui <- function(request) page_sidebar(
           icon = bsicons::bs_icon("folder2-open"),
           class = "btn-outline-primary btn-sm w-100"),
         div(class = "small text-muted mt-1 text-break",
-            textOutput("igv_dir_label", inline = TRUE)),
-        helpText(class = "small",
-                 "Folder with one sub-folder per sample, each containing ",
-                 "<SAMPLE>.igv_report.html. Used by the Sample explorer tab. ",
-                 "Requires an internet connection to render.")
+            textOutput("igv_dir_label", inline = TRUE))
       ),
 
       accordion_panel(
