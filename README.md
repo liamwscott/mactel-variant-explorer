@@ -56,7 +56,8 @@ On startup the app loads, in order of preference:
 install.packages(c(
   "shiny", "bslib", "bsicons", "DT", "plotly",
   "ggplot2", "dplyr", "tidyr", "readr", "stringr",
-  "forcats", "scales"
+  "forcats", "scales", "shinyFiles", "jsonlite",
+  "r3dmol", "httr"
 ))
 ```
 

@@ -746,15 +746,16 @@ ui <- function(request) page_sidebar(
     nav_panel(
       "Sample explorer",
       icon = bsicons::bs_icon("person-lines-fill"),
-      layout_sidebar(
-        sidebar = sidebar(
-          width = 280, position = "left",
-          selectizeInput("sample_pick", "Select a sample",
+      div(
+        # The sample picker sits in a compact header strip directly under the
+        # tab bar (rather than a left sidebar), so the content below can use the
+        # full width instead of leaving a tall empty column.
+        div(
+          class = "mb-3",
+          style = "min-width: 280px; max-width: 360px;",
+          selectizeInput("sample_pick", "Select a sample", width = "100%",
                          choices = NULL, multiple = FALSE,
-                         options = list(placeholder = "Start typing a sample ID…")),
-          helpText("Shows every variant carried by the chosen sample. ",
-                   "The lower table ignores the global filters; the upper one ",
-                   "respects them.")
+                         options = list(placeholder = "Start typing a sample ID…"))
         ),
         div(
           uiOutput("sample_tags"),
@@ -1733,16 +1734,12 @@ server <- function(input, output, session) {
     tagList(
       tags$hr(class = "mt-3"),
       tags$div(
+        class = "mb-3",
         tags$strong("AlphaFold structure"),
         tags$span(class = "text-muted small",
                   " — cartoon coloured by per-residue confidence (pLDDT); ",
                   "the selected variant residue is highlighted in magenta.")),
-      r3dmol::r3dmolOutput("variant_structure", height = "440px"),
-      helpText(class = "small text-muted",
-               "Fetched on demand from the AlphaFold DB and cached locally, so ",
-               "the first view of a gene needs internet. Residue numbering ",
-               "follows the canonical UniProt isoform, which can differ from ",
-               "the transcript used for HGVSp in a minority of genes.")
+      r3dmol::r3dmolOutput("variant_structure", height = "440px")
     )
   }
 
@@ -1785,7 +1782,12 @@ server <- function(input, output, session) {
     # Always frame the entire protein (never zoom to the residue) so the view is
     # identical for every variant in the gene — jumping between variants then
     # only moves the magenta marker, making the position change easy to follow.
-    v %>% r3dmol::m_zoom_to(sel = r3dmol::m_sel())
+    # A fixed zoom factor on the whole-protein framing pulls the camera in a
+    # little (so the structure fills more of the viewer) while staying identical
+    # across variants.
+    v %>%
+      r3dmol::m_zoom_to(sel = r3dmol::m_sel()) %>%
+      r3dmol::m_zoom(factor = 1.4)
   })
 
   show_variant_modal <- function(row) {
@@ -1821,11 +1823,6 @@ server <- function(input, output, session) {
       uiOutput("variant_links"),
       uiOutput("variant_samples"),
       plotly::plotlyOutput("lollipop", height = 430),
-      helpText("Lollipops show every variant in this gene across the loaded ",
-               "data (height = CADD, colour = ClinVar, size = number of ",
-               "samples). Boxes are Pfam protein domains; the selected ",
-               "variant is ringed. Hover a point for detail, or click one to ",
-               "switch the summary above to that variant."),
       structure_section(),
       easyClose = TRUE, size = "xl",
       footer = tagList(
@@ -1870,10 +1867,6 @@ server <- function(input, output, session) {
       uiOutput("variant_links"),
       uiOutput("variant_samples"),
       plotly::plotlyOutput("lollipop", height = 430),
-      helpText("Lollipops show every variant in this gene across the loaded ",
-               "data (height = CADD, colour = ClinVar, size = number of ",
-               "samples). Boxes are Pfam protein domains. Hover a point for ",
-               "detail, or click one to load that variant above."),
       structure_section(),
       easyClose = TRUE, size = "xl",
       footer = tagList(
