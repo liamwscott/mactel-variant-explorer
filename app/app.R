@@ -453,9 +453,10 @@ ui <- function(request) page_sidebar(
                     min = 0, max = 60, value = 0, step = 1),
         sliderInput("revel", "REVEL ≥",
                     min = 0, max = 1, value = 0, step = 0.05),
-        sliderInput("gnomad", "gnomAD AF ≤ (log10)",
-                    min = -6, max = 0, value = 0, step = 0.5,
-                    post = "")
+        numericInput("gnomad", "gnomAD AF ≤",
+                     value = NA, min = 0, max = 1, step = 0.001),
+        helpText(class = "small text-muted mt-n2",
+                 "Max population allele frequency (0–1). Leave blank for no limit.")
       ),
 
       accordion_panel(
@@ -1042,7 +1043,7 @@ server <- function(input, output, session) {
     updateCheckboxInput(session, "exclude_am_benign", value = FALSE)
     updateSliderInput(session, "cadd", value = 0)
     updateSliderInput(session, "revel", value = 0)
-    updateSliderInput(session, "gnomad", value = 0)
+    updateNumericInput(session, "gnomad", value = NA)
     updateSliderInput(session, "min_flags", value = 0)
     updateCheckboxGroupInput(session, "sample_group", selected = "MacTel")
   })
@@ -1070,8 +1071,8 @@ server <- function(input, output, session) {
     df <- dplyr::filter(df, is.na(CADD) | CADD >= input$cadd)
     if (input$revel > 0)
       df <- dplyr::filter(df, !is.na(REVEL) & REVEL >= input$revel)
-    if (input$gnomad < 0) {
-      thr <- 10^input$gnomad
+    if (!is.null(input$gnomad) && !is.na(input$gnomad) && input$gnomad < 1) {
+      thr <- input$gnomad
       df <- dplyr::filter(df, is.na(gnomad_AF) | gnomad_AF <= thr)
     }
     df
@@ -1493,7 +1494,7 @@ server <- function(input, output, session) {
       exclude_am_benign = isTRUE(input$exclude_am_benign),
       cadd          = input$cadd %||% 0,
       revel         = input$revel %||% 0,
-      gnomad        = input$gnomad %||% 0,
+      gnomad        = input$gnomad %||% NA,
       min_flags     = input$min_flags %||% 0,
       priority_cadd = input$priority_cadd %||% 20,
       sample_group  = oe(input$sample_group)
@@ -1536,7 +1537,7 @@ server <- function(input, output, session) {
     if (!is.null(vals$revel))
       updateSliderInput(session, "revel", value = vals$revel)
     if (!is.null(vals$gnomad))
-      updateSliderInput(session, "gnomad", value = vals$gnomad)
+      updateNumericInput(session, "gnomad", value = vals$gnomad)
     if (!is.null(vals$min_flags))
       updateSliderInput(session, "min_flags", value = vals$min_flags)
     if (!is.null(vals$priority_cadd))
