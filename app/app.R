@@ -1773,18 +1773,19 @@ server <- function(input, output, session) {
       # "magentaCarbon" colours carbons magenta (heteroatoms keep element
       # colours) so the variant residue pops against the cartoon. r3dmol always
       # emits colorscheme:"default", which 3Dmol prioritises over a plain
-      # `color`, so we set the scheme rather than a single colour.
+      # `color`, so we set the scheme rather than a single colour. Spheres are
+      # scaled up so the residue is easy to spot in the whole-protein view.
       sel <- r3dmol::m_sel(resi = resi)
       v <- v %>%
         r3dmol::m_add_style(sel = sel,
-          style = r3dmol::m_style_stick(colorScheme = "magentaCarbon", radius = 0.35)) %>%
+          style = r3dmol::m_style_stick(colorScheme = "magentaCarbon", radius = 0.4)) %>%
         r3dmol::m_add_style(sel = sel,
-          style = r3dmol::m_style_sphere(colorScheme = "magentaCarbon", scale = 0.4)) %>%
-        r3dmol::m_zoom_to(sel = sel)
-    } else {
-      v <- v %>% r3dmol::m_zoom_to(sel = r3dmol::m_sel())
+          style = r3dmol::m_style_sphere(colorScheme = "magentaCarbon", scale = 0.9))
     }
-    v
+    # Always frame the entire protein (never zoom to the residue) so the view is
+    # identical for every variant in the gene — jumping between variants then
+    # only moves the magenta marker, making the position change easy to follow.
+    v %>% r3dmol::m_zoom_to(sel = r3dmol::m_sel())
   })
 
   show_variant_modal <- function(row) {
