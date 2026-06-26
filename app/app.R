@@ -415,16 +415,10 @@ ui <- function(request) page_sidebar(
                     choices = names(GENE_LISTS),
                     selected = if (length(GENE_LISTS)) names(GENE_LISTS)[1] else NULL,
                     width = "100%"),
-        helpText(class = "small text-muted",
-                 "Curated candidate-gene list version (date). Sets each gene's ",
-                 "tier and description; switching re-tiers the loaded variants."),
         tags$hr(class = "my-2"),
         radioButtons("id_format", "Sample ID format",
                      choices = c("AID", "Patient ID"),
-                     selected = "AID", inline = TRUE),
-        helpText(class = "small text-muted",
-                 "Which identifier to show for samples throughout the app. ",
-                 "The sample explorer always shows both.")
+                     selected = "AID", inline = TRUE)
       ),
 
       accordion_panel(
