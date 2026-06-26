@@ -97,6 +97,33 @@ SAMPLE_INFO_EXAMPLE <- file.path(app_dir, "data", "example_sample_info.tsv")
 SAMPLE_INFO <- load_sample_info(
   if (file.exists(SAMPLE_INFO_REAL)) SAMPLE_INFO_REAL else SAMPLE_INFO_EXAMPLE)
 
+# family_id -> alternate-ID lookups for the sample-ID display toggle. Built once
+# from SAMPLE_INFO. The variant data and every internal join stay keyed on
+# family_id; only the *displayed* label changes. Falls back to family_id when a
+# mapping is missing or blank.
+AID_LOOKUP <- character(0)
+PID_LOOKUP <- character(0)
+if (!is.null(SAMPLE_INFO) && "family_id" %in% names(SAMPLE_INFO)) {
+  if ("AID" %in% names(SAMPLE_INFO)) {
+    AID_LOOKUP <- stats::setNames(as.character(SAMPLE_INFO$AID),
+                                  SAMPLE_INFO$family_id)
+  }
+  if ("Patient_ID" %in% names(SAMPLE_INFO)) {
+    PID_LOOKUP <- stats::setNames(as.character(SAMPLE_INFO$Patient_ID),
+                                  SAMPLE_INFO$family_id)
+  }
+}
+
+# Map a vector of family_ids to display labels for the chosen format ("AID" or
+# "Patient ID"). Vectorised; preserves order; blanks/NAs fall back to family_id.
+format_sample_id <- function(fid, fmt = "AID") {
+  fid <- as.character(fid)
+  lk  <- if (identical(fmt, "Patient ID")) PID_LOOKUP else AID_LOOKUP
+  if (length(lk) == 0) return(fid)
+  out <- unname(lk[fid])
+  ifelse(is.na(out) | !nzchar(out), fid, out)
+}
+
 # Tier lookup: prefer the richer gene_info table; fall back to gene_tiers.tsv.
 TIER_PATH <- file.path(app_dir, "data", "gene_tiers.tsv")
 TIER_DF   <- if (!is.null(GENE_INFO)) {
@@ -390,7 +417,14 @@ ui <- function(request) page_sidebar(
                     width = "100%"),
         helpText(class = "small text-muted",
                  "Curated candidate-gene list version (date). Sets each gene's ",
-                 "tier and description; switching re-tiers the loaded variants.")
+                 "tier and description; switching re-tiers the loaded variants."),
+        tags$hr(class = "my-2"),
+        radioButtons("id_format", "Sample ID format",
+                     choices = c("AID", "Patient ID"),
+                     selected = "AID", inline = TRUE),
+        helpText(class = "small text-muted",
+                 "Which identifier to show for samples throughout the app. ",
+                 "The sample explorer always shows both.")
       ),
 
       accordion_panel(
@@ -977,12 +1011,26 @@ server <- function(input, output, session) {
                              choices = tiers, selected = tiers, inline = TRUE)
     updateSelectizeInput(session, "genes",
                          choices = sort(unique(df$SYMBOL)), server = TRUE)
+    fids <- sort(unique(df$family_id))
     updateSelectizeInput(session, "sample_pick",
-                         choices = sort(unique(df$family_id)), server = TRUE)
+                         choices = stats::setNames(fids, fmt_sample(fids)),
+                         server = TRUE)
     mx <- ceiling(max(df$CADD, na.rm = TRUE))
     updateSliderInput(session, "cadd", max = mx, value = 0)
     updateSliderInput(session, "priority_cadd", max = mx)
   })
+
+  # Re-label the sample picker when the ID format toggle changes (the value
+  # stays family_id; only the visible label changes). Tables/plots re-render
+  # on their own because they read input$id_format via fmt_sample().
+  observeEvent(input$id_format, {
+    df <- raw(); req(df)
+    fids <- sort(unique(df$family_id))
+    updateSelectizeInput(session, "sample_pick",
+                         choices = stats::setNames(fids, fmt_sample(fids)),
+                         selected = isolate(input$sample_pick) %||% "",
+                         server = TRUE)
+  }, ignoreInit = TRUE)
 
   observeEvent(input$reset_filters, {
     df <- raw(); req(df)
@@ -1096,14 +1144,20 @@ server <- function(input, output, session) {
   # The JS-string payload is sorted-on by DT (prefix is constant), so columns
   # still sort by the embedded id.
   .jsesc <- function(x) gsub("'", "\\\\'", as.character(x))
+  # Display label for a family_id under the currently selected ID format.
+  # Reading input$id_format here makes every table/plot that calls it
+  # re-render when the user flips the format toggle.
+  fmt_sample <- function(fid) format_sample_id(fid, input$id_format %||% "AID")
   link_gene <- function(sym) {
     ifelse(is.na(sym) | sym == "", as.character(sym), sprintf(
       "<a href='#' onclick=\"Shiny.setInputValue('cell_gene','%s',{priority:'event'});return false;\">%s</a>",
       .jsesc(sym), sym))
   }
+  # Payload stays family_id (so jump-to-sample keeps working); the visible text
+  # uses the selected ID format.
   link_sample <- function(fid) sprintf(
     "<a href='#' onclick=\"Shiny.setInputValue('cell_sample','%s',{priority:'event'});return false;\">%s</a>",
-    .jsesc(fid), fid)
+    .jsesc(fid), fmt_sample(fid))
   link_variant <- function(chrom, pos, ref, alt) {
     label <- sprintf("%s:%s %s>%s", chrom, pos, ref, alt)
     key   <- sprintf("%s||%s||%s||%s", chrom, pos, ref, alt)
@@ -1120,7 +1174,7 @@ server <- function(input, output, session) {
       variant_col <- link_variant(df$CHROM, df$POS, df$REF, df$ALT)
     } else {
       gene_col    <- df$SYMBOL
-      sample_col  <- df$family_id
+      sample_col  <- fmt_sample(df$family_id)
       variant_col <- sprintf("%s:%s %s>%s", df$CHROM, df$POS, df$REF, df$ALT)
     }
     df %>%
@@ -1232,7 +1286,7 @@ server <- function(input, output, session) {
   output$sample_header <- renderText({
     if (is.null(input$sample_pick) || input$sample_pick == "")
       "Select a sample to see its variants"
-    else sprintf("Variants in sample %s", input$sample_pick)
+    else sprintf("Variants in sample %s", fmt_sample(input$sample_pick))
   })
 
   # ---- per-sample IGV report ------------------------------------------------
@@ -1338,8 +1392,12 @@ server <- function(input, output, session) {
     })
     group_badges <- Filter(Negate(is.null), group_badges)
 
-    # Identity line: the AID the app uses (the selected sample) alongside the
-    # numeric MacTel patient ID, when the sample sheet carries one.
+    # Identity line: always show BOTH identifiers regardless of the selected
+    # display format. Prefer the non-padded AID form (e.g. A1) from the sample
+    # sheet; fall back to the family_id key if the column is missing.
+    aid <- if ("AID" %in% names(row) &&
+               !is.na(row$AID) && nzchar(row$AID))
+      row$AID else input$sample_pick
     pid <- if ("Patient_ID" %in% names(row) &&
                !is.na(row$Patient_ID) && nzchar(row$Patient_ID))
       row$Patient_ID else NA_character_
@@ -1347,7 +1405,7 @@ server <- function(input, output, session) {
       class = "mb-2 d-flex flex-wrap align-items-center",
       tags$span(class = "me-3",
         tags$span("AID ", class = "text-muted small"),
-        tags$span(input$sample_pick, class = "fw-semibold")),
+        tags$span(aid, class = "fw-semibold")),
       if (!is.na(pid)) tags$span(
         tags$span("Patient ID ", class = "text-muted small"),
         tags$span(pid, class = "fw-semibold"))
@@ -1648,7 +1706,7 @@ server <- function(input, output, session) {
       else "#9E9E9E"
     }
     chips <- lapply(carriers, function(fid) {
-      tags$a(href = "#", fid,
+      tags$a(href = "#", fmt_sample(fid),
              class = "badge rounded-pill me-1",
              style = sprintf(
                "background-color:%s;color:#fff;text-decoration:none;cursor:pointer;",
@@ -1868,7 +1926,7 @@ server <- function(input, output, session) {
       if (length(carriers) > 0) {
         pills <- paste(vapply(carriers, function(fid)
           sprintf('<span class="pill" style="background:%s">%s</span>',
-                  diag_colour(fid), esc(fid)), character(1)), collapse = "")
+                  diag_colour(fid), esc(fmt_sample(fid))), character(1)), collapse = "")
         body_html <- paste0(body_html,
           sprintf("<h3>Carried by %d sample%s</h3>", length(carriers),
                   if (length(carriers) == 1) "" else "s"),
@@ -1889,7 +1947,7 @@ server <- function(input, output, session) {
                          CADD    = suppressWarnings(max(CADD, na.rm = TRUE)),
                          ClinVar = as.character(dplyr::first(CLNSIG_clean)),
                          # one row per variant; list every sample carrying it
-                         Samples = paste(sort(unique(family_id)), collapse = ", "),
+                         Samples = paste(sort(unique(fmt_sample(family_id))), collapse = ", "),
                          .groups = "drop") %>%
         dplyr::arrange(dplyr::desc(CADD))
       vr <- vapply(seq_len(nrow(vsum)), function(i) {
@@ -2075,6 +2133,7 @@ server <- function(input, output, session) {
                       am_class, SpliceAI_max, CLNSIG_clean, gnomad_AF,
                       inheritance, flag_clinvar, flag_high, flag_cadd,
                       n_flags, why_prioritised) %>%
+        dplyr::mutate(family_id = fmt_sample(family_id)) %>%
         dplyr::rename(Sample = family_id)
       readr::write_csv(d, file)
     }
@@ -2092,6 +2151,7 @@ server <- function(input, output, session) {
                       HGVSc, HGVSp_short, IMPACT, TYPE, CADD, REVEL,
                       am_class, SpliceAI_max, CLNSIG_clean, gnomad_AF,
                       inheritance) %>%
+        dplyr::mutate(family_id = fmt_sample(family_id)) %>%
         dplyr::rename(Sample = family_id)
       readr::write_csv(d, file)
     }
