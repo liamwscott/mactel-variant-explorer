@@ -1338,9 +1338,27 @@ server <- function(input, output, session) {
     })
     group_badges <- Filter(Negate(is.null), group_badges)
 
-    div(class = "mb-2",
-        tags$span("Tags: ", class = "text-muted small me-1"),
-        diag_badge, group_badges)
+    # Identity line: the AID the app uses (the selected sample) alongside the
+    # numeric MacTel patient ID, when the sample sheet carries one.
+    pid <- if ("Patient_ID" %in% names(row) &&
+               !is.na(row$Patient_ID) && nzchar(row$Patient_ID))
+      row$Patient_ID else NA_character_
+    id_line <- div(
+      class = "mb-2 d-flex flex-wrap align-items-center",
+      tags$span(class = "me-3",
+        tags$span("AID ", class = "text-muted small"),
+        tags$span(input$sample_pick, class = "fw-semibold")),
+      if (!is.na(pid)) tags$span(
+        tags$span("Patient ID ", class = "text-muted small"),
+        tags$span(pid, class = "fw-semibold"))
+    )
+
+    tagList(
+      id_line,
+      div(class = "mb-2",
+          tags$span("Tags: ", class = "text-muted small me-1"),
+          diag_badge, group_badges)
+    )
   })
 
   build_sample_dt <- function(d) {
