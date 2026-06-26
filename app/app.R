@@ -90,6 +90,10 @@ GENE_INFO      <- load_gene_info(GENE_INFO_PATH)
 PROTEIN_DOMAINS <- load_protein_domains(file.path(app_dir, "data",
                                                   "protein_domains.tsv"))
 
+# The embedded 3D structure viewer needs the optional r3dmol package. When it is
+# absent the app still runs — the structure section is simply omitted.
+HAS_R3DMOL <- requireNamespace("r3dmol", quietly = TRUE)
+
 # Per-sample info (case/control status + data-group flags). Prefer the real
 # sheet when present (git-ignored); otherwise the de-identified example.
 SAMPLE_INFO_REAL    <- file.path(app_dir, "data", "all_samples_fixed.txt")
@@ -1656,11 +1660,7 @@ server <- function(input, output, session) {
         "Shiny.setInputValue('open_url','%s',{priority:'event'});", .jsesc(url)))
 
     # AlphaFold: keyed by the gene's UniProt accession from the domain table.
-    uni <- if (!is.null(PROTEIN_DOMAINS)) {
-      u <- PROTEIN_DOMAINS$UniProt[PROTEIN_DOMAINS$SYMBOL == row$SYMBOL]
-      u <- u[!is.na(u) & u != ""]
-      if (length(u)) u[1] else NA
-    } else NA
+    uni <- af_uniprot_for_gene(row$SYMBOL, PROTEIN_DOMAINS)
     af_btn <- if (!is.na(uni)) open_btn(
       sprintf("https://alphafold.ebi.ac.uk/entry/%s", uni),
       sprintf("AlphaFold structure (%s)", uni), "box") else NULL
@@ -1725,6 +1725,68 @@ server <- function(input, output, session) {
     )
   })
 
+  # ---- 3D AlphaFold structure viewer ----------------------------------------
+  # UI block dropped into the gene/variant modals. Returns NULL when r3dmol is
+  # not installed, so the rest of the modal still renders.
+  structure_section <- function() {
+    if (!HAS_R3DMOL) return(NULL)
+    tagList(
+      tags$hr(class = "mt-3"),
+      tags$div(
+        tags$strong("AlphaFold structure"),
+        tags$span(class = "text-muted small",
+                  " — cartoon coloured by per-residue confidence (pLDDT); ",
+                  "the selected variant residue is highlighted in magenta.")),
+      r3dmol::r3dmolOutput("variant_structure", height = "440px"),
+      helpText(class = "small text-muted",
+               "Fetched on demand from the AlphaFold DB and cached locally, so ",
+               "the first view of a gene needs internet. Residue numbering ",
+               "follows the canonical UniProt isoform, which can differ from ",
+               "the transcript used for HGVSp in a minority of genes.")
+    )
+  }
+
+  # Renders the AlphaFold model for the active gene, coloured by pLDDT, with the
+  # selected variant residue drawn as magenta sticks + sphere and zoomed-to.
+  # Re-renders whenever the active gene or variant changes (e.g. clicking a
+  # different lollipop point). Reused by both the gene and variant modals.
+  if (HAS_R3DMOL) output$variant_structure <- r3dmol::renderR3dmol({
+    gene <- modal_gene(); req(gene)
+    uni  <- af_uniprot_for_gene(gene, PROTEIN_DOMAINS)
+    validate(need(!is.na(uni),
+                  "No UniProt accession is mapped for this gene, so no structure is available."))
+    pdb <- fetch_alphafold_pdb(uni)
+    validate(need(!is.null(pdb),
+                  "AlphaFold structure could not be loaded (offline, or this protein is not modelled)."))
+
+    row  <- modal_variant()
+    resi <- if (!is.null(row) && nrow(row) > 0)
+      aa_position(row$HGVSp_short) else NA_integer_
+
+    v <- r3dmol::r3dmol(viewer_spec = r3dmol::m_viewer_spec(
+           cartoonQuality = 8, backgroundColor = "#FFFFFF")) %>%
+      r3dmol::m_add_model(data = pdb, format = "pdb") %>%
+      r3dmol::m_set_style(style = r3dmol::m_style_cartoon(
+        colorfunc = htmlwidgets::JS(AF_PLDDT_COLORFUNC)))
+
+    if (!is.na(resi)) {
+      # "magentaCarbon" colours carbons magenta (heteroatoms keep element
+      # colours) so the variant residue pops against the cartoon. r3dmol always
+      # emits colorscheme:"default", which 3Dmol prioritises over a plain
+      # `color`, so we set the scheme rather than a single colour.
+      sel <- r3dmol::m_sel(resi = resi)
+      v <- v %>%
+        r3dmol::m_add_style(sel = sel,
+          style = r3dmol::m_style_stick(colorScheme = "magentaCarbon", radius = 0.35)) %>%
+        r3dmol::m_add_style(sel = sel,
+          style = r3dmol::m_style_sphere(colorScheme = "magentaCarbon", scale = 0.4)) %>%
+        r3dmol::m_zoom_to(sel = sel)
+    } else {
+      v <- v %>% r3dmol::m_zoom_to(sel = r3dmol::m_sel())
+    }
+    v
+  })
+
   show_variant_modal <- function(row) {
     if (is.null(row) || nrow(row) == 0) return(invisible())
     modal_variant(row)
@@ -1763,6 +1825,7 @@ server <- function(input, output, session) {
                "samples). Boxes are Pfam protein domains; the selected ",
                "variant is ringed. Hover a point for detail, or click one to ",
                "switch the summary above to that variant."),
+      structure_section(),
       easyClose = TRUE, size = "xl",
       footer = tagList(
         downloadButton("report_dl",
@@ -1810,6 +1873,7 @@ server <- function(input, output, session) {
                "data (height = CADD, colour = ClinVar, size = number of ",
                "samples). Boxes are Pfam protein domains. Hover a point for ",
                "detail, or click one to load that variant above."),
+      structure_section(),
       easyClose = TRUE, size = "xl",
       footer = tagList(
         downloadButton("report_dl",
