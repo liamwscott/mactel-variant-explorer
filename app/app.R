@@ -57,7 +57,33 @@ DEFAULT_IGV_DIR <- file.path(app_dir, "data", "igv_reports")
 igv_startup     <- if (dir.exists(DEFAULT_IGV_DIR)) DEFAULT_IGV_DIR else ""
 
 # Gene info (Tier + descriptions; gene symbols only, no participant data) ------
-GENE_INFO_PATH <- file.path(app_dir, "data", "gene_info.tsv")
+# The curated candidate-gene list is versioned: each release is a date-stamped
+# TSV (gene_info_YYYY-MM-DD.tsv) under data/gene_lists/. The user picks a version
+# from the sidebar; the newest is the default. Falls back to a single legacy
+# data/gene_info.tsv if the folder is absent.
+GENE_LIST_DIR <- file.path(app_dir, "data", "gene_lists")
+
+# Returns a named character vector: display label (version date, newest first)
+# -> file path. Labels are the YYYY-MM-DD pulled from the filename when present.
+list_gene_lists <- function() {
+  files <- if (dir.exists(GENE_LIST_DIR))
+    sort(list.files(GENE_LIST_DIR, pattern = "\\.tsv$", full.names = TRUE),
+         decreasing = TRUE) else character(0)
+  if (length(files) == 0) {
+    legacy <- file.path(app_dir, "data", "gene_info.tsv")
+    if (file.exists(legacy)) files <- legacy
+  }
+  if (length(files) == 0) return(character(0))
+  labels <- vapply(files, function(f) {
+    d <- regmatches(basename(f), regexpr("[0-9]{4}-[0-9]{2}-[0-9]{2}", basename(f)))
+    if (length(d) == 1 && nzchar(d)) d else tools::file_path_sans_ext(basename(f))
+  }, character(1))
+  stats::setNames(files, labels)
+}
+
+GENE_LISTS     <- list_gene_lists()
+GENE_INFO_PATH <- if (length(GENE_LISTS)) unname(GENE_LISTS[1]) else
+                  file.path(app_dir, "data", "gene_info.tsv")
 GENE_INFO      <- load_gene_info(GENE_INFO_PATH)
 
 # Pfam protein domains, pre-fetched offline (gene symbols only, no patient data).
@@ -79,19 +105,17 @@ TIER_DF   <- if (!is.null(GENE_INFO)) {
   load_gene_tiers(TIER_PATH)
 }
 
-# How many curated genes sit in each tier (for the landing-page summary box).
-# Counts the distinct gene list, independent of any uploaded variant file.
-tier_gene_count <- function(label) {
-  if (is.null(TIER_DF) || !"Tier" %in% names(TIER_DF)) return(0L)
-  sum(TIER_DF$Tier == label, na.rm = TRUE)
+# Count curated genes in a tier (for the landing-page summary box). Works on
+# whichever gene-list version is active (a tier lookup tibble of SYMBOL + Tier).
+tier_gene_count <- function(tier_df, label) {
+  if (is.null(tier_df) || !"Tier" %in% names(tier_df)) return(0L)
+  sum(tier_df$Tier == label, na.rm = TRUE)
 }
-N_TIER1 <- tier_gene_count("Tier 1")
-N_TIER2 <- tier_gene_count("Tier 2")
 
-# Build a modalDialog describing a single gene from GENE_INFO.
-show_gene_modal <- function(symbol) {
+# Build a modalDialog describing a single gene from the active gene-info table.
+show_gene_modal <- function(symbol, gene_info = GENE_INFO) {
   if (is.null(symbol) || is.na(symbol) || symbol == "") return(invisible())
-  info <- if (!is.null(GENE_INFO)) GENE_INFO[GENE_INFO$SYMBOL == symbol, ] else NULL
+  info <- if (!is.null(gene_info)) gene_info[gene_info$SYMBOL == symbol, ] else NULL
 
   if (is.null(info) || nrow(info) == 0) {
     body <- tags$p(tags$em("No annotation available for this gene."))
@@ -149,9 +173,10 @@ show_gene_modal <- function(symbol) {
   ))
 }
 
-# Load + clean + annotate tier in one step.
-load_annotated <- function(path) {
-  annotate_tier(load_variants(path), TIER_DF)
+# Load + clean + annotate tier in one step. Pass the tier lookup for the gene
+# list version currently selected (defaults to the startup TIER_DF).
+load_annotated <- function(path, tier_df = TIER_DF) {
+  annotate_tier(load_variants(path), tier_df)
 }
 
 # Short descriptions shown as hover tooltips on table column headers. Keyed by
@@ -357,7 +382,15 @@ ui <- function(request) page_sidebar(
           icon = bsicons::bs_icon("folder2-open"),
           class = "btn-outline-primary btn-sm w-100"),
         div(class = "small text-muted mt-1 text-break",
-            textOutput("igv_dir_label", inline = TRUE))
+            textOutput("igv_dir_label", inline = TRUE)),
+        tags$hr(class = "my-2"),
+        selectInput("gene_list_pick", "Gene list version",
+                    choices = names(GENE_LISTS),
+                    selected = if (length(GENE_LISTS)) names(GENE_LISTS)[1] else NULL,
+                    width = "100%"),
+        helpText(class = "small text-muted",
+                 "Curated candidate-gene list version (date). Sets each gene's ",
+                 "tier and description; switching re-tiers the loaded variants.")
       ),
 
       accordion_panel(
@@ -413,11 +446,12 @@ ui <- function(request) page_sidebar(
              "Upload a second Cavalier CSV to open a 'Variant comparisons' ",
              "tab listing variants present in only one of the two files."),
 
-    actionButton("share_link",
-                 tagList(bsicons::bs_icon("link-45deg"), " Copy share link"),
+    actionButton("filter_share",
+                 tagList(bsicons::bs_icon("sliders"), " Share / save filters"),
                  class = "btn-outline-primary btn-sm w-100 mt-3",
-                 title = paste("Get a link that reproduces the current filters",
-                               "and tab — paste it to a colleague or bookmark it."))
+                 title = paste("Copy a short code of the current filter settings to",
+                               "share with a colleague or save for later — paste a",
+                               "code to apply those filters to your own data."))
   ),
 
   # Header summary stats (custom flexbox cards — see stat_card()).
@@ -504,10 +538,10 @@ ui <- function(request) page_sidebar(
           " filter on the left to focus on one tier at a time."),
         layout_columns(
           col_widths = c(6, 6),
-          tier_box("Tier 1", N_TIER1,
+          tier_box("Tier 1", textOutput("n_tier1", inline = TRUE),
                    "Established, high-confidence links to MacTel.",
                    list(bg = "#eaf1f8", bar = "#1F4E79")),
-          tier_box("Tier 2", N_TIER2,
+          tier_box("Tier 2", textOutput("n_tier2", inline = TRUE),
                    "Candidate genes with supporting but less definitive evidence.",
                    list(bg = "#eef5f9", bar = "#3A7CA5"))
         )
@@ -750,12 +784,39 @@ server <- function(input, output, session) {
   src_label <- reactiveVal("No file loaded — upload a Cavalier CSV to begin")
   main_name <- reactiveVal("")                       # label for the active file
 
-  # Auto-load the startup file ONLY in DEBUG mode. By default nothing is loaded
-  # until the user explicitly uploads/selects a CSV (see DEBUG flag near top).
-  if (isTRUE(DEBUG)) {
+  # ---- active gene-list version --------------------------------------------
+  # The selected version supplies both the gene descriptions (gene_info_rv) and
+  # the SYMBOL -> Tier lookup (tier_df_rv). Switching versions re-tiers whatever
+  # variants are loaded and refreshes the tier filter choices downstream.
+  gene_info_rv <- reactiveVal(GENE_INFO)
+  tier_df_rv   <- reactiveVal(TIER_DF)
+
+  observeEvent(input$gene_list_pick, {
+    path <- GENE_LISTS[[input$gene_list_pick]]
+    if (is.null(path) || !file.exists(path)) return()
+    gi  <- load_gene_info(path)
+    tdf <- if (!is.null(gi))
+      dplyr::distinct(dplyr::select(gi, SYMBOL, Tier)) else NULL
+    gene_info_rv(gi)
+    tier_df_rv(tdf)
+    # Re-tier the currently loaded variants under the new gene list.
+    df <- raw()
+    if (!is.null(df)) {
+      df <- dplyr::select(df, -dplyr::any_of("Tier"))
+      raw(annotate_tier(df, tdf))
+    }
+  }, ignoreInit = TRUE)
+
+  # Landing-page tier counts track the active gene list.
+  output$n_tier1 <- renderText(tier_gene_count(tier_df_rv(), "Tier 1"))
+  output$n_tier2 <- renderText(tier_gene_count(tier_df_rv(), "Tier 2"))
+
+  # Auto-load the startup file only in DEBUG mode (developer convenience). Normal
+  # launches stay empty so the user explicitly chooses their own file.
+  if (isTRUE(DEBUG) && file.exists(startup_path)) {
     main_name(basename(startup_path))
     observe({
-      df <- load_annotated(startup_path)
+      df <- load_annotated(startup_path, isolate(tier_df_rv()))
       raw(df)
       src_label(sprintf("%s  (%d variants, DEBUG auto-load)",
                         basename(startup_path), nrow(df)))
@@ -764,7 +825,7 @@ server <- function(input, output, session) {
 
   observeEvent(input$upload, {
     req(input$upload)
-    df <- tryCatch(load_annotated(input$upload$datapath),
+    df <- tryCatch(load_annotated(input$upload$datapath, tier_df_rv()),
                    error = function(e) {
                      showNotification(paste("Could not load file:", e$message),
                                       type = "error", duration = 8)
@@ -789,7 +850,7 @@ server <- function(input, output, session) {
 
   observeEvent(input$compare_upload, {
     req(input$compare_upload)
-    df <- tryCatch(load_annotated(input$compare_upload$datapath),
+    df <- tryCatch(load_annotated(input$compare_upload$datapath, tier_df_rv()),
                    error = function(e) {
                      showNotification(paste("Could not load comparison file:",
                                             e$message),
@@ -1325,73 +1386,127 @@ server <- function(input, output, session) {
   modal_variant <- reactiveVal(NULL)   # one-row data frame of the clicked variant
   modal_gene     <- reactiveVal(NULL)   # gene whose lollipop is on screen
 
-  # ---- shareable bookmark links ---------------------------------------------
-  # URL bookmarking (enableBookmarking = "url" on shinyApp) encodes the sidebar
-  # filters and active tab into a copy-pasteable link. We additionally save the
-  # open gene/variant when the link is generated from inside a protein modal, so
-  # the recipient reopens exactly the same view.
-  bookmark_with_variant <- reactiveVal(FALSE)
+  # ---- portable filter codes (share / save / restore) -----------------------
+  # Instead of a URL that bundles the whole app state (and needs the same data
+  # file to make sense), we serialise just the sidebar filter settings into a
+  # short base64 code. A colleague pastes that code to apply the identical
+  # filters to their OWN loaded data, and the same code doubles as a "save my
+  # filters" snapshot to restore later. Data-independent and portable: genes the
+  # other dataset lacks are silently dropped, sliders clamp to their own ranges.
 
-  # Don't pollute the URL with one-shot click/event inputs or the file upload
-  # (a local path that wouldn't transfer, and would re-fire on restore).
-  setBookmarkExclude(c(
-    "upload", "share_link", "share_from_modal", "reset_filters",
-    "cell_gene", "cell_variant", "cell_sample",
-    "gene_view_variants", "gene_view_lollipop", "open_url"
-  ))
+  # Collect the current filter inputs into a base64-encoded JSON code. Empty
+  # selections are stored as empty arrays (not dropped) so "show none" round-trips.
+  make_filter_code <- function() {
+    oe <- function(x) if (is.null(x)) character(0) else x
+    vals <- list(
+      v             = 1L,
+      tab           = input$main_tabs %||% "",
+      tier          = oe(input$tier),
+      genes         = oe(input$genes),
+      impact        = oe(input$impact),
+      type          = oe(input$type),
+      clnsig        = oe(input$clnsig),
+      exclude_am_benign = isTRUE(input$exclude_am_benign),
+      cadd          = input$cadd %||% 0,
+      revel         = input$revel %||% 0,
+      gnomad        = input$gnomad %||% 0,
+      min_flags     = input$min_flags %||% 0,
+      priority_cadd = input$priority_cadd %||% 20,
+      sample_group  = oe(input$sample_group)
+    )
+    json <- jsonlite::toJSON(vals, auto_unbox = TRUE)
+    gsub("[\r\n]", "", jsonlite::base64_enc(charToRaw(as.character(json))))
+  }
 
-  # Sidebar button: link with filters + tab only (no variant).
-  observeEvent(input$share_link, {
-    bookmark_with_variant(FALSE)
-    session$doBookmark()
-  })
-  # Modal button: link that also reopens the current gene/variant.
-  observeEvent(input$share_from_modal, {
-    bookmark_with_variant(TRUE)
-    session$doBookmark()
-  })
-
-  onBookmark(function(state) {
-    if (isTRUE(bookmark_with_variant())) {
-      state$values$bm_gene <- modal_gene()
-      r <- modal_variant()
-      state$values$bm_vkey <- if (!is.null(r) && nrow(r) > 0)
-        paste(r$CHROM, r$POS, r$REF, r$ALT) else NA_character_
+  # Decode a pasted code and apply each saved filter to this session's inputs.
+  apply_filter_code <- function(code) {
+    code <- trimws(code %||% "")
+    if (!nzchar(code)) {
+      showNotification("Paste a filter code first.", type = "warning")
+      return(invisible(FALSE))
     }
-  })
-
-  onBookmarked(function(url) {
-    bookmark_with_variant(FALSE)
-    showBookmarkUrlModal(url)   # modal with the URL pre-selected for copying
-  })
-
-  # On restore the data-load observer above repopulates choices and resets the
-  # tier/genes/sample/CADD inputs, clobbering the restored values — so reapply
-  # them here, after the session is fully restored, then reopen any saved modal.
-  onRestored(function(state) {
-    ip <- state$input
-    if (!is.null(ip$tier))
-      updateCheckboxGroupInput(session, "tier", selected = ip$tier)
-    if (!is.null(ip$genes))
-      updateSelectizeInput(session, "genes", selected = ip$genes)
-    if (!is.null(ip$sample_pick))
-      updateSelectizeInput(session, "sample_pick", selected = ip$sample_pick)
-    if (!is.null(ip$cadd))
-      updateSliderInput(session, "cadd", value = ip$cadd)
-
-    g <- state$values$bm_gene
-    if (!is.null(g) && !is.na(g) && nzchar(g)) {
-      df <- isolate(raw())
-      vk <- state$values$bm_vkey
-      if (!is.null(df)) {
-        if (!is.null(vk) && !is.na(vk)) {
-          hit <- dplyr::filter(df, SYMBOL == g,
-                               paste(CHROM, POS, REF, ALT) == vk)
-          if (nrow(hit) > 0) { show_variant_modal(hit[1, ]); return() }
-        }
-        show_gene_lollipop_modal(g)
-      }
+    vals <- tryCatch(
+      jsonlite::fromJSON(rawToChar(jsonlite::base64_dec(code)),
+                         simplifyVector = TRUE),
+      error = function(e) NULL)
+    if (is.null(vals) || is.null(vals$v)) {
+      showNotification("That doesn't look like a valid filter code — check it was copied in full.",
+                       type = "error", duration = 8)
+      return(invisible(FALSE))
     }
+    chr <- function(x) as.character(unlist(x))
+    if (!is.null(vals$tier))
+      updateCheckboxGroupInput(session, "tier", selected = chr(vals$tier))
+    if (!is.null(vals$genes))
+      updateSelectizeInput(session, "genes", selected = chr(vals$genes))
+    if (!is.null(vals$impact))
+      updateCheckboxGroupInput(session, "impact", selected = chr(vals$impact))
+    if (!is.null(vals$type))
+      updateCheckboxGroupInput(session, "type", selected = chr(vals$type))
+    if (!is.null(vals$clnsig))
+      updateCheckboxGroupInput(session, "clnsig", selected = chr(vals$clnsig))
+    updateCheckboxInput(session, "exclude_am_benign",
+                        value = isTRUE(vals$exclude_am_benign))
+    if (!is.null(vals$cadd))
+      updateSliderInput(session, "cadd", value = vals$cadd)
+    if (!is.null(vals$revel))
+      updateSliderInput(session, "revel", value = vals$revel)
+    if (!is.null(vals$gnomad))
+      updateSliderInput(session, "gnomad", value = vals$gnomad)
+    if (!is.null(vals$min_flags))
+      updateSliderInput(session, "min_flags", value = vals$min_flags)
+    if (!is.null(vals$priority_cadd))
+      updateSliderInput(session, "priority_cadd", value = vals$priority_cadd)
+    if (!is.null(vals$sample_group))
+      updateCheckboxGroupInput(session, "sample_group", selected = chr(vals$sample_group))
+    if (!is.null(vals$tab) && nzchar(vals$tab))
+      bslib::nav_select("main_tabs", vals$tab, session = session)
+    showNotification("Filters applied from code.", type = "message", duration = 4)
+    removeModal()
+    invisible(TRUE)
+  }
+
+  # Sidebar button: open the share/save dialog with this session's code ready to
+  # copy, plus a box to paste someone else's code.
+  observeEvent(input$filter_share, {
+    code <- make_filter_code()
+    showModal(modalDialog(
+      title = tagList(bsicons::bs_icon("sliders"), " Share or save filters"),
+      tags$p(class = "text-muted",
+             "Copy this code to share your current filter settings or save them ",
+             "for later. The recipient pastes it below to apply the same filters ",
+             "to their own loaded data."),
+      tags$label(class = "fw-bold", "Your current filters"),
+      tags$div(
+        class = "input-group mb-2",
+        tags$textarea(id = "filter_code_out", class = "form-control",
+                      rows = 2, readonly = NA,
+                      style = "font-family:monospace;font-size:0.8rem;",
+                      code),
+        tags$button(
+          tagList(bsicons::bs_icon("clipboard"), " Copy"),
+          class = "btn btn-outline-primary",
+          onclick = paste0(
+            "var t=document.getElementById('filter_code_out');",
+            "t.select();navigator.clipboard.writeText(t.value);",
+            "this.innerHTML='Copied!';return false;"))
+      ),
+      tags$hr(),
+      textAreaInput("filter_code_in", tags$span(class = "fw-bold", "Apply a filter code"),
+                    value = "", rows = 2, width = "100%",
+                    placeholder = "Paste a filter code here…"),
+      easyClose = TRUE,
+      footer = tagList(
+        actionButton("filter_code_apply",
+                     tagList(bsicons::bs_icon("check2-circle"), " Apply filters"),
+                     class = "btn btn-primary"),
+        modalButton("Close"))
+    ))
+  })
+
+  # Apply button inside the dialog decodes and applies the pasted code.
+  observeEvent(input$filter_code_apply, {
+    apply_filter_code(input$filter_code_in)
   })
 
   # The variant detail block re-renders whenever the selected variant changes,
@@ -1538,8 +1653,9 @@ server <- function(input, output, session) {
 
     tier <- if (!is.null(row$Tier)) row$Tier else NA
 
-    # gene description (from the bundled gene-info table), shown above the plot
-    ginfo <- if (!is.null(GENE_INFO)) GENE_INFO[GENE_INFO$SYMBOL == row$SYMBOL, ] else NULL
+    # gene description (from the active gene-info table), shown above the plot
+    gi <- gene_info_rv()
+    ginfo <- if (!is.null(gi)) gi[gi$SYMBOL == row$SYMBOL, ] else NULL
     gene_desc <- if (!is.null(ginfo) && nrow(ginfo) > 0 &&
                      !is.na(ginfo$Gene_Description[1]) &&
                      ginfo$Gene_Description[1] != "") {
@@ -1574,12 +1690,6 @@ server <- function(input, output, session) {
                        tagList(bsicons::bs_icon("file-earmark-arrow-down"),
                                " Download report"),
                        class = "btn btn-primary", icon = NULL),
-        tags$button(
-          tagList(bsicons::bs_icon("link-45deg"), " Copy share link"),
-          class = "btn btn-outline-primary",
-          title = "Get a link that reopens this gene/variant with the current filters.",
-          onclick = paste0("Shiny.setInputValue('share_from_modal', Math.random(),",
-                           " {priority:'event'}); return false;")),
         modalButton("Close"))
     ))
   }
@@ -1592,7 +1702,8 @@ server <- function(input, output, session) {
     modal_variant(NULL)
     modal_gene(symbol)
 
-    info <- if (!is.null(GENE_INFO)) GENE_INFO[GENE_INFO$SYMBOL == symbol, ] else NULL
+    gi <- gene_info_rv()
+    info <- if (!is.null(gi)) gi[gi$SYMBOL == symbol, ] else NULL
     tier <- if (!is.null(info) && nrow(info) > 0) info$Tier[1] else NA
     gene_desc <- if (!is.null(info) && nrow(info) > 0 &&
                      !is.na(info$Gene_Description[1]) &&
@@ -1626,12 +1737,6 @@ server <- function(input, output, session) {
                        tagList(bsicons::bs_icon("file-earmark-arrow-down"),
                                " Download report"),
                        class = "btn btn-primary", icon = NULL),
-        tags$button(
-          tagList(bsicons::bs_icon("link-45deg"), " Copy share link"),
-          class = "btn btn-outline-primary",
-          title = "Get a link that reopens this gene/variant with the current filters.",
-          onclick = paste0("Shiny.setInputValue('share_from_modal', Math.random(),",
-                           " {priority:'event'}); return false;")),
         modalButton("Close"))
     ))
   }
@@ -1644,7 +1749,8 @@ server <- function(input, output, session) {
     esc <- function(x) htmltools::htmlEscape(as.character(x))
     has_row <- !is.null(row) && nrow(row) > 0
 
-    ginfo <- if (!is.null(GENE_INFO)) GENE_INFO[GENE_INFO$SYMBOL == gene, ] else NULL
+    gi <- gene_info_rv()
+    ginfo <- if (!is.null(gi)) gi[gi$SYMBOL == gene, ] else NULL
     tier  <- if (!is.null(ginfo) && nrow(ginfo) > 0) ginfo$Tier[1]
              else if (has_row && !is.null(row$Tier)) row$Tier else NA
     gdesc <- if (!is.null(ginfo) && nrow(ginfo) > 0 &&
@@ -1869,7 +1975,7 @@ server <- function(input, output, session) {
 
   # Clicking a Gene cell -> gene-description modal.
   observeEvent(input$cell_gene, {
-    show_gene_modal(input$cell_gene)
+    show_gene_modal(input$cell_gene, gene_info_rv())
   })
 
   # "View all variants" in the gene modal -> set the gene filter to that gene
@@ -1976,4 +2082,4 @@ purrr_paste <- function(fc, fh, fca, clnsig, cadd, impact, cadd_thr) {
   }, character(1))
 }
 
-shinyApp(ui, server, enableBookmarking = "url")
+shinyApp(ui, server)
