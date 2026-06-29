@@ -128,6 +128,32 @@ format_sample_id <- function(fid, fmt = "AID") {
   ifelse(is.na(out) | !nzchar(out), fid, out)
 }
 
+# Family grouping (from the manifest's Family_ID column, derived from the
+# clinical pedigree). FAMILY_OF maps an individual family_id -> its Family_ID;
+# FAMILY_MEMBERS maps a Family_ID -> the vector of member family_ids. Only
+# samples in a multi-member family carry a Family_ID; singletons are absent.
+FAMILY_OF      <- character(0)
+FAMILY_MEMBERS <- list()
+if (!is.null(SAMPLE_INFO) &&
+    all(c("family_id", "Family_ID") %in% names(SAMPLE_INFO))) {
+  fam <- SAMPLE_INFO[!is.na(SAMPLE_INFO$Family_ID) & nzchar(SAMPLE_INFO$Family_ID),
+                     c("family_id", "Family_ID"), drop = FALSE]
+  if (nrow(fam)) {
+    FAMILY_OF      <- stats::setNames(as.character(fam$Family_ID),
+                                      as.character(fam$family_id))
+    FAMILY_MEMBERS <- split(as.character(fam$family_id),
+                            as.character(fam$Family_ID))
+  }
+}
+
+# Family_ID for a single individual family_id, or NA when it has no family.
+family_of <- function(fid) {
+  fid <- as.character(fid)
+  if (length(FAMILY_OF) == 0 || length(fid) != 1 || is.na(fid)) return(NA_character_)
+  out <- unname(FAMILY_OF[fid])
+  if (is.na(out) || !nzchar(out)) NA_character_ else out
+}
+
 # Tier lookup: prefer the richer gene_info table; fall back to gene_tiers.tsv.
 TIER_PATH <- file.path(app_dir, "data", "gene_tiers.tsv")
 TIER_DF   <- if (!is.null(GENE_INFO)) {
@@ -792,6 +818,15 @@ ui <- function(request) page_sidebar(
           )
         )
       )
+    ),
+
+    nav_panel(
+      "Family explorer",
+      icon = bsicons::bs_icon("people-fill"),
+      div(
+        uiOutput("family_header"),
+        uiOutput("family_body")
+      )
     )
   )
 )
@@ -890,6 +925,10 @@ server <- function(input, output, session) {
   compare_raw       <- reactiveVal(NULL)
   compare_name      <- reactiveVal(NULL)
   compare_tab_added <- reactiveVal(FALSE)
+
+  # The family whose members are shown in the Family explorer tab. NULL until a
+  # clickable Family_ID badge is used in the Sample explorer.
+  selected_family <- reactiveVal(NULL)
 
   observeEvent(input$compare_upload, {
     req(input$compare_upload)
@@ -1165,6 +1204,22 @@ server <- function(input, output, session) {
       "<a href='#' onclick=\"Shiny.setInputValue('cell_variant','%s',{priority:'event'});return false;\">%s</a>",
       .jsesc(key), label)
   }
+  # Diagnosis colour for a sample (family_id key): red MacTel, blue HSAN1,
+  # purple both, grey neither. Shared by the variant-modal carrier chips and the
+  # Family explorer member badges.
+  diag_colour <- function(fid) {
+    if (is.null(SAMPLE_INFO)) return("#9E9E9E")
+    r <- SAMPLE_INFO[SAMPLE_INFO$family_id == fid, , drop = FALSE]
+    if (nrow(r) == 0) return("#9E9E9E")
+    m <- isTRUE(r$is_mactel[1]); h <- isTRUE(r$is_hsan1[1])
+    if (m && h) "#9467BD" else if (m) "#D62728" else if (h) "#1F77B4"
+    else "#9E9E9E"
+  }
+  # A single clickable, diagnosis-coloured member badge (same look as the
+  # carrier chips beside the protein lollipop). Click -> Sample explorer.
+  link_member <- function(fid) sprintf(
+    "<a href='#' class='badge rounded-pill me-1' style='background-color:%s;color:#fff;text-decoration:none;cursor:pointer;' onclick=\"Shiny.setInputValue('cell_sample','%s',{priority:'event'});return false;\">%s</a>",
+    diag_colour(fid), .jsesc(fid), fmt_sample(fid))
 
   # ---- display-table builder ------------------------------------------------
   display_cols <- function(df, links = TRUE) {
@@ -1289,6 +1344,143 @@ server <- function(input, output, session) {
     else sprintf("Variants in sample %s", fmt_sample(input$sample_pick))
   })
 
+  # ---- family explorer ------------------------------------------------------
+  # All sequenced members of the selected family (family_id keys), used as the
+  # denominator for carrier counts and the universe for both family tables.
+  family_member_keys <- reactive({
+    fam <- selected_family()
+    if (is.null(fam) || is.null(FAMILY_MEMBERS[[fam]])) return(character(0))
+    FAMILY_MEMBERS[[fam]]
+  })
+
+  family_data_priority <- reactive({
+    members <- family_member_keys(); req(length(members) > 0)
+    filtered_pre_group() %>% dplyr::filter(family_id %in% members)
+  })
+
+  family_data_all <- reactive({
+    members <- family_member_keys(); req(length(members) > 0)
+    raw() %>% dplyr::filter(family_id %in% members)
+  })
+
+  # Collapse a family's variant rows to one row per unique variant, adding a
+  # carrier count (N members carrying / total sequenced) and a clickable,
+  # diagnosis-coloured member-badge column. Sorted by carrier count desc.
+  build_family_dt <- function(d, total) {
+    if (is.null(d) || nrow(d) == 0) return(NULL)
+    d <- d %>% dplyr::mutate(
+      .vkey = paste(CHROM, POS, REF, ALT, sep = "||"))
+    carriers <- d %>%
+      dplyr::distinct(.vkey, family_id) %>%
+      dplyr::group_by(.vkey) %>%
+      dplyr::summarise(
+        n_carriers = dplyr::n_distinct(family_id),
+        Members = paste(vapply(sort(unique(family_id)), link_member,
+                               character(1)), collapse = " "),
+        .groups = "drop")
+    reps <- d %>%
+      dplyr::group_by(.vkey) %>% dplyr::slice(1) %>% dplyr::ungroup()
+    tbl <- reps %>%
+      dplyr::left_join(carriers, by = ".vkey") %>%
+      dplyr::arrange(dplyr::desc(n_carriers), dplyr::desc(is_pathLP),
+                     dplyr::desc(CADD)) %>%
+      dplyr::transmute(
+        Gene = link_gene(SYMBOL), Tier = Tier,
+        Variant = link_variant(CHROM, POS, REF, ALT),
+        Carriers = sprintf("%d/%d", n_carriers, total),
+        Members = Members,
+        HGVSc, HGVSp = HGVSp_short,
+        Impact = IMPACT, Type = TYPE, CADD = round(CADD, 1),
+        REVEL = round(REVEL, 3), AlphaMissense = am_class,
+        ClinVar = CLNSIG_clean, gnomAD_AF = signif(gnomad_AF, 3),
+        Inheritance = inheritance)
+    DT::datatable(tbl, rownames = FALSE, selection = "none", escape = FALSE,
+                  options = list(pageLength = 15, scrollX = TRUE,
+                                 headerCallback = header_tips_cb())) %>%
+      DT::formatStyle("ClinVar",
+                      backgroundColor = DT::styleEqual(
+                        c("Pathogenic", "Pathogenic/Likely_pathogenic",
+                          "Likely_pathogenic"),
+                        c("#FDDEDE", "#F7D6F7", "#FDE8D8"))) %>%
+      DT::formatStyle("AlphaMissense",
+                      backgroundColor = DT::styleEqual(
+                        "likely_pathogenic", "#FDE8D8")) %>%
+      DT::formatStyle("Impact",
+                      backgroundColor = DT::styleEqual("HIGH", "#FDDEDE"))
+  }
+
+  output$family_header <- renderUI({
+    fam <- selected_family()
+    if (is.null(fam)) return(NULL)
+    members <- family_member_keys()
+    legend_dot <- function(col, lab) tags$span(
+      tags$span(style = sprintf(
+        "display:inline-block;width:10px;height:10px;border-radius:50%%;background-color:%s;margin-right:3px;",
+        col)), lab, class = "me-2")
+    tagList(
+      div(class = "mb-2 d-flex flex-wrap align-items-center",
+          tags$span(class = "me-3",
+            tags$span("Family ", class = "text-muted small"),
+            tags$span(fam, class = "fw-semibold")),
+          tags$span(
+            tags$span("Sequenced members ", class = "text-muted small"),
+            tags$span(length(members), class = "fw-semibold"))),
+      div(class = "mb-2", HTML(paste(vapply(members, link_member,
+                                            character(1)), collapse = " "))),
+      div(class = "small text-muted mb-3",
+          legend_dot("#D62728", "MacTel"), legend_dot("#1F77B4", "HSAN1"),
+          legend_dot("#9467BD", "MacTel + HSAN1"),
+          legend_dot("#9E9E9E", "Control"))
+    )
+  })
+
+  output$family_body <- renderUI({
+    if (is.null(selected_family()))
+      return(div(class = "text-muted",
+                 bsicons::bs_icon("people"),
+                 paste0(" Click a Family badge in the Sample explorer to see ",
+                        "the whole family's variants here.")))
+    tagList(
+      card(
+        card_header(
+          "Filtered / prioritised variants",
+          tags$span(bsicons::bs_icon("info-circle"),
+                    " family variants that pass the global filters; one row per ",
+                    "unique variant",
+                    class = "text-muted small ms-2")
+        ),
+        DT::DTOutput("family_table_priority")
+      ),
+      card(
+        card_header(
+          "All variants",
+          tags$span(bsicons::bs_icon("info-circle"),
+                    " every variant carried by any family member, ignoring ",
+                    "filters; one row per unique variant",
+                    class = "text-muted small ms-2")
+        ),
+        DT::DTOutput("family_table_all")
+      )
+    )
+  })
+
+  output$family_table_priority <- DT::renderDT({
+    validate(need(!is.null(selected_family()),
+                  "Click a Family badge in the Sample explorer."))
+    d <- family_data_priority()
+    validate(need(nrow(d) > 0,
+                  "No family variants pass the current filters."))
+    build_family_dt(d, length(family_member_keys()))
+  })
+
+  output$family_table_all <- DT::renderDT({
+    validate(need(!is.null(selected_family()),
+                  "Click a Family badge in the Sample explorer."))
+    d <- family_data_all()
+    validate(need(nrow(d) > 0, "No variants for this family."))
+    build_family_dt(d, length(family_member_keys()))
+  })
+
   # ---- per-sample IGV report ------------------------------------------------
   # Point the app at a folder of igv-reports HTMLs (one sub-folder per sample)
   # using a point-and-click folder picker (shinyFiles). The chosen folder is
@@ -1401,6 +1593,16 @@ server <- function(input, output, session) {
     pid <- if ("Patient_ID" %in% names(row) &&
                !is.na(row$Patient_ID) && nzchar(row$Patient_ID))
       row$Patient_ID else NA_character_
+    fam <- family_of(input$sample_pick)
+    fam_badge <- if (!is.na(fam)) {
+      tags$span(class = "ms-3",
+        tags$span("Family ", class = "text-muted small"),
+        tags$a(href = "#", fam,
+          class = "fw-semibold badge rounded-pill bg-info text-dark",
+          onclick = sprintf(
+            "Shiny.setInputValue('cell_family','%s',{priority:'event'});return false;",
+            .jsesc(fam))))
+    }
     id_line <- div(
       class = "mb-2 d-flex flex-wrap align-items-center",
       tags$span(class = "me-3",
@@ -1408,7 +1610,8 @@ server <- function(input, output, session) {
         tags$span(aid, class = "fw-semibold")),
       if (!is.na(pid)) tags$span(
         tags$span("Patient ID ", class = "text-muted small"),
-        tags$span(pid, class = "fw-semibold"))
+        tags$span(pid, class = "fw-semibold")),
+      fam_badge
     )
 
     tagList(
@@ -1692,15 +1895,6 @@ server <- function(input, output, session) {
       dplyr::pull(family_id)
     if (length(carriers) == 0) return(NULL)
 
-    # Diagnosis colour: red MacTel, blue HSAN1, purple both, grey neither.
-    diag_colour <- function(fid) {
-      if (is.null(SAMPLE_INFO)) return("#9E9E9E")
-      r <- SAMPLE_INFO[SAMPLE_INFO$family_id == fid, , drop = FALSE]
-      if (nrow(r) == 0) return("#9E9E9E")
-      m <- isTRUE(r$is_mactel[1]); h <- isTRUE(r$is_hsan1[1])
-      if (m && h) "#9467BD" else if (m) "#D62728" else if (h) "#1F77B4"
-      else "#9E9E9E"
-    }
     chips <- lapply(carriers, function(fid) {
       tags$a(href = "#", fmt_sample(fid),
              class = "badge rounded-pill me-1",
@@ -2152,6 +2346,16 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "sample_pick",
                          selected = input$cell_sample)
     bslib::nav_select("main_tabs", "Sample explorer")
+  })
+
+  # Clicking a Family_ID badge -> remember the family and jump to the Family
+  # explorer tab (which is otherwise an empty placeholder).
+  observeEvent(input$cell_family, {
+    removeModal()
+    fam <- input$cell_family
+    if (is.null(fam) || !nzchar(fam)) return()
+    selected_family(fam)
+    bslib::nav_select("main_tabs", "Family explorer")
   })
 
   # Open a URL (AlphaFold, ClinVar, …) in the OS default browser, bypassing
