@@ -2366,8 +2366,19 @@ server <- function(input, output, session) {
   # jump to the Sample explorer for that sample.
   observeEvent(input$cell_sample, {
     removeModal()
+    fid <- input$cell_sample
+    if (is.null(fid) || !nzchar(fid)) return()
+    # The picker only lists samples that carry candidate variants. A family
+    # member with none (still clickable from the Family explorer header) is not
+    # among those choices, so updateSelectizeInput(selected = fid) would
+    # silently clear the selection and land on an empty Sample explorer. Add the
+    # fid to the choices first so the sample (with its identity + empty variant
+    # table) loads correctly.
+    df <- raw()
+    fids <- if (is.null(df)) fid else sort(unique(c(df$family_id, fid)))
     updateSelectizeInput(session, "sample_pick",
-                         selected = input$cell_sample)
+                         choices = stats::setNames(fids, fmt_sample(fids)),
+                         selected = fid, server = TRUE)
     bslib::nav_select("main_tabs", "Sample explorer")
   })
 
