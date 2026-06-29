@@ -45,8 +45,9 @@ shiny::runApp("path/to/mactel_variant_explorer/app")
 On startup the app loads, in order of preference:
 
 1. `app/data/candidate_variants.csv` — your real data (git-ignored, never committed)
-2. `app/data/example_variants.csv` — de-identified example shipped with the repo
-3. any CSV you upload via the sidebar **Data** panel
+2. any CSV you upload via the sidebar **Data** panel
+
+No participant data ships with the repo; supply your own Cavalier CSV.
 
 ---
 
@@ -108,6 +109,5 @@ mactel_variant_explorer/
     ├── scripts/
     │   └── fetch_protein_domains.py  # dev tool: regenerate protein_domains.tsv
     └── data/
-        ├── candidate_variants.csv  # REAL data (git-ignored)
-        └── example_variants.csv    # de-identified example (committed)
+        └── candidate_variants.csv  # REAL data (git-ignored, supplied separately)
 ```

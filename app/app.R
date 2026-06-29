@@ -10,8 +10,8 @@
 #
 # Data source priority:
 #   1. data/candidate_variants.csv  (real data, gitignored — used if present)
-#   2. data/example_variants.csv    (de-identified example shipped with repo)
-#   3. a file uploaded via the sidebar
+#   2. a file uploaded via the sidebar
+# No data ships with the repo; point the app at your own Cavalier CSV.
 # =============================================================================
 
 library(shiny)

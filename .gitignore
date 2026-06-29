@@ -1,19 +1,20 @@
 # ---------------------------------------------------------------------------
-# PRIVACY: never commit real participant / family-level data
-# Only the de-identified example_variants.csv is allowed in the repo.
+# This repository holds application code only. Data files live outside version
+# control and are supplied separately at runtime.
 # ---------------------------------------------------------------------------
-# Match real-data files wherever they live (top level or app/data/).
+# Data files (kept local; never committed).
 candidate_variants*.csv
 all_samples_fixed.txt
 *samples_fixed*
-# Sample-level info / sample list (kept local, not version-controlled).
+example_variants.csv
+app/data/example_variants.csv
 example_sample_info.tsv
 app/data/example_sample_info.tsv
 *.real.csv
 *.real.tsv
 data/raw/
 app/data/raw/
-# Per-sample IGV reports (real read-level sample data) — pointed-to at runtime.
+# Generated report folders (kept local; pointed-to at runtime).
 igv_reports/
 app/data/igv_reports/
 by_family*/
@@ -37,5 +38,5 @@ Thumbs.db
 .vscode/
 .claude/
 
-# local working files (source spreadsheets; the committed .tsv is canonical)
+# local working spreadsheets
 *.xlsx
