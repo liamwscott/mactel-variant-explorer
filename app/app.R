@@ -146,6 +146,15 @@ if (!is.null(SAMPLE_INFO) &&
   }
 }
 
+# Family labels for the Family explorer dropdown, ordered by their numeric
+# suffix (FAMILY1, FAMILY2, … FAMILY10) rather than lexicographically.
+FAMILY_CHOICES <- names(FAMILY_MEMBERS)
+if (length(FAMILY_CHOICES)) {
+  FAMILY_CHOICES <- FAMILY_CHOICES[
+    order(suppressWarnings(as.integer(gsub("\\D", "", FAMILY_CHOICES))),
+          FAMILY_CHOICES)]
+}
+
 # Family_ID for a single individual family_id, or NA when it has no family.
 family_of <- function(fid) {
   fid <- as.character(fid)
@@ -824,6 +833,13 @@ ui <- function(request) page_sidebar(
       "Family explorer",
       icon = bsicons::bs_icon("people-fill"),
       div(
+        div(
+          class = "mb-3",
+          style = "min-width: 280px; max-width: 360px;",
+          selectizeInput("family_pick", "Select a family", width = "100%",
+                         choices = c("", FAMILY_CHOICES), selected = "",
+                         options = list(placeholder = "Choose a family…"))
+        ),
         uiOutput("family_header"),
         uiOutput("family_body")
       )
@@ -1208,12 +1224,12 @@ server <- function(input, output, session) {
   # purple both, grey neither. Shared by the variant-modal carrier chips and the
   # Family explorer member badges.
   diag_colour <- function(fid) {
-    if (is.null(SAMPLE_INFO)) return("#9E9E9E")
+    if (is.null(SAMPLE_INFO)) return("#546E7A")
     r <- SAMPLE_INFO[SAMPLE_INFO$family_id == fid, , drop = FALSE]
-    if (nrow(r) == 0) return("#9E9E9E")
+    if (nrow(r) == 0) return("#546E7A")
     m <- isTRUE(r$is_mactel[1]); h <- isTRUE(r$is_hsan1[1])
-    if (m && h) "#9467BD" else if (m) "#D62728" else if (h) "#1F77B4"
-    else "#9E9E9E"
+    if (m && h) "#6A1B9A" else if (m) "#C62828" else if (h) "#1565C0"
+    else "#546E7A"
   }
   # A single clickable, diagnosis-coloured member badge (same look as the
   # carrier chips beside the protein lollipop). Click -> Sample explorer.
@@ -1428,9 +1444,9 @@ server <- function(input, output, session) {
       div(class = "mb-2", HTML(paste(vapply(members, link_member,
                                             character(1)), collapse = " "))),
       div(class = "small text-muted mb-3",
-          legend_dot("#D62728", "MacTel"), legend_dot("#1F77B4", "HSAN1"),
-          legend_dot("#9467BD", "MacTel + HSAN1"),
-          legend_dot("#9E9E9E", "Control"))
+          legend_dot("#C62828", "MacTel"), legend_dot("#1565C0", "HSAN1"),
+          legend_dot("#6A1B9A", "MacTel + HSAN1"),
+          legend_dot("#546E7A", "Control"))
     )
   })
 
@@ -1438,8 +1454,9 @@ server <- function(input, output, session) {
     if (is.null(selected_family()))
       return(div(class = "text-muted",
                  bsicons::bs_icon("people"),
-                 paste0(" Click a Family badge in the Sample explorer to see ",
-                        "the whole family's variants here.")))
+                 paste0(" Choose a family above, or click a Family badge in the ",
+                        "Sample explorer, to see the whole family's variants ",
+                        "here.")))
     tagList(
       card(
         card_header(
@@ -1561,13 +1578,17 @@ server <- function(input, output, session) {
     if (nrow(row) == 0) return(NULL)
     row <- row[1, ]
 
-    # Diagnosis badge first.
+    # Diagnosis badge first. Colours match the carrier/member badges elsewhere
+    # (MacTel red, HSAN1 blue, control slate) with white text for contrast.
+    diag_pill <- function(label, bg) tags$span(
+      label, class = "badge rounded-pill me-1",
+      style = sprintf("background-color:%s;color:#fff;", bg))
     diag_badge <- if (isTRUE(row$is_mactel)) {
-      tags$span("MacTel", class = "badge rounded-pill bg-danger me-1")
+      diag_pill("MacTel", "#C62828")
     } else if (isTRUE(row$is_hsan1)) {
-      tags$span("HSAN1", class = "badge rounded-pill bg-warning text-dark me-1")
+      diag_pill("HSAN1", "#1565C0")
     } else {
-      tags$span("Control", class = "badge rounded-pill bg-secondary me-1")
+      diag_pill("Control", "#546E7A")
     }
 
     # Group-membership badges from the flag columns. Skip HSAN1_variant when
@@ -1598,7 +1619,9 @@ server <- function(input, output, session) {
       tags$span(class = "ms-3",
         tags$span("Family ", class = "text-muted small"),
         tags$a(href = "#", fam,
-          class = "fw-semibold badge rounded-pill bg-info text-dark",
+          class = "fw-semibold badge rounded-pill",
+          style = paste0("background-color:#00695C;color:#fff;",
+                         "text-decoration:none;cursor:pointer;"),
           onclick = sprintf(
             "Shiny.setInputValue('cell_family','%s',{priority:'event'});return false;",
             .jsesc(fam))))
@@ -1915,8 +1938,8 @@ server <- function(input, output, session) {
                                  if (length(carriers) == 1) "" else "s")),
              style = "margin-bottom:2px;"),
       div(class = "small text-muted mb-1",
-          legend_dot("#D62728", "MacTel"), legend_dot("#1F77B4", "HSAN1"),
-          legend_dot("#9467BD", "MacTel + HSAN1"),   legend_dot("#9E9E9E", "Control")),
+          legend_dot("#C62828", "MacTel"), legend_dot("#1565C0", "HSAN1"),
+          legend_dot("#6A1B9A", "MacTel + HSAN1"),   legend_dot("#546E7A", "Control")),
       div(class = "mb-2", chips)
     )
   })
@@ -2164,11 +2187,11 @@ server <- function(input, output, session) {
         dplyr::distinct(family_id) %>% dplyr::arrange(family_id) %>%
         dplyr::pull(family_id)
       diag_colour <- function(fid) {
-        if (is.null(SAMPLE_INFO)) return("#9E9E9E")
+        if (is.null(SAMPLE_INFO)) return("#546E7A")
         r <- SAMPLE_INFO[SAMPLE_INFO$family_id == fid, , drop = FALSE]
-        if (nrow(r) == 0) return("#9E9E9E")
+        if (nrow(r) == 0) return("#546E7A")
         m <- isTRUE(r$is_mactel[1]); h <- isTRUE(r$is_hsan1[1])
-        if (m && h) "#9467BD" else if (m) "#D62728" else if (h) "#1F77B4" else "#9E9E9E"
+        if (m && h) "#6A1B9A" else if (m) "#C62828" else if (h) "#1565C0" else "#546E7A"
       }
       if (length(carriers) > 0) {
         pills <- paste(vapply(carriers, function(fid)
@@ -2178,10 +2201,10 @@ server <- function(input, output, session) {
           sprintf("<h3>Carried by %d sample%s</h3>", length(carriers),
                   if (length(carriers) == 1) "" else "s"),
           "<p class='legend'>",
-          "<span class='dot' style='background:#D62728'></span>MacTel",
-          "<span class='dot' style='background:#1F77B4'></span>HSAN1",
-          "<span class='dot' style='background:#9467BD'></span>MacTel + HSAN1",
-          "<span class='dot' style='background:#9E9E9E'></span>Control</p>",
+          "<span class='dot' style='background:#C62828'></span>MacTel",
+          "<span class='dot' style='background:#1565C0'></span>HSAN1",
+          "<span class='dot' style='background:#6A1B9A'></span>MacTel + HSAN1",
+          "<span class='dot' style='background:#546E7A'></span>Control</p>",
           sprintf("<div class='pills'>%s</div>", pills))
       }
       title_line <- sprintf("%s &mdash; %s:%s %s&gt;%s", esc(gene), esc(row$CHROM),
@@ -2348,15 +2371,23 @@ server <- function(input, output, session) {
     bslib::nav_select("main_tabs", "Sample explorer")
   })
 
-  # Clicking a Family_ID badge -> remember the family and jump to the Family
-  # explorer tab (which is otherwise an empty placeholder).
+  # Clicking a Family_ID badge -> remember the family, sync the dropdown, and
+  # jump to the Family explorer tab.
   observeEvent(input$cell_family, {
     removeModal()
     fam <- input$cell_family
     if (is.null(fam) || !nzchar(fam)) return()
     selected_family(fam)
+    updateSelectizeInput(session, "family_pick", selected = fam)
     bslib::nav_select("main_tabs", "Family explorer")
   })
+
+  # Picking a family straight from the Family explorer dropdown (no click needed
+  # from the Sample explorer). Empty selection clears back to the placeholder.
+  observeEvent(input$family_pick, {
+    fam <- input$family_pick
+    selected_family(if (is.null(fam) || !nzchar(fam)) NULL else fam)
+  }, ignoreNULL = FALSE, ignoreInit = TRUE)
 
   # Open a URL (AlphaFold, ClinVar, …) in the OS default browser, bypassing
   # RStudio's browser option (which otherwise traps it in its blank Viewer).
