@@ -5,7 +5,7 @@
 # Expects the 71-column Cavalier CSV structure (see R/load_data.R).
 #
 # Run locally:
-#   shiny::runApp("/Users/scott.l/Documents/Claude/mactel_variant_explorer")
+#   shiny::runApp("path/to/mactel_variant_explorer")
 # or open app.R in RStudio and click "Run App".
 #
 # Data source priority:
