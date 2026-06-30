@@ -26,6 +26,7 @@ library(forcats)
 library(scales)
 library(plotly)
 library(shinyFiles)
+library(patchwork)   # attach: the | and / layout operators need it on the path
 
 # Files in R/ are auto-sourced by Shiny, but source explicitly so the app also
 # works when launched via shiny::runApp() from any working directory.
@@ -1242,11 +1243,11 @@ server <- function(input, output, session) {
       parts <- c(parts, paste("Tier", paste(sort(input$tier), collapse = ",")))
     if (length(input$genes))
       parts <- c(parts, paste("Genes", paste(input$genes, collapse = ",")))
-    if (length(input$impact))
+    if (length(input$impact) && !setequal(input$impact, IMPACT_LEVELS))
       parts <- c(parts, paste("Impact", paste(input$impact, collapse = ",")))
-    if (length(input$type))
+    if (length(input$type) && !setequal(input$type, TYPE_LEVELS))
       parts <- c(parts, paste("Type", paste(input$type, collapse = ",")))
-    if (length(input$clnsig))
+    if (length(input$clnsig) && !setequal(input$clnsig, CLNSIG_LEVELS))
       parts <- c(parts, paste("ClinVar", paste(input$clnsig, collapse = ",")))
     if (!is.null(input$cadd) && input$cadd > 0)
       parts <- c(parts, sprintf("CADD>=%g", input$cadd))
@@ -1288,8 +1289,10 @@ server <- function(input, output, session) {
             plot.title    = ggplot2::element_text(face = "bold", size = 18),
             plot.subtitle = ggplot2::element_text(size = 11, colour = "grey30"),
             plot.caption  = ggplot2::element_text(size = 9, colour = "grey50")))
-      ggplot2::ggsave(file, fig, width = 13, height = 12, dpi = 200,
-                      bg = "white")
+      # device = "png" is required: downloadHandler hands us an extension-less
+      # temp path, so ggsave cannot infer the format from the filename.
+      ggplot2::ggsave(file, fig, device = "png", width = 13, height = 12,
+                      dpi = 200, bg = "white")
     }
   )
 
