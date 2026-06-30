@@ -135,7 +135,7 @@ format_sample_id <- function(fid, fmt = "AID") {
 # plus the app's derived ones); these are just the ones ticked by default. Only
 # columns that actually exist are used, so this is safe across CSV variants.
 EXPORT_DEFAULT_COLS <- c(
-  "family_id", "SYMBOL", "Tier", "CHROM", "POS", "REF", "ALT",
+  "family_id", "SYMBOL", "Tier", "Variant", "CHROM", "POS", "REF", "ALT",
   "Consequence", "HGVSc", "HGVSp", "IMPACT", "TYPE",
   "CADD", "REVEL", "am_class", "am_pathogenicity", "SpliceAI_max",
   "CLNSIG", "CLNSIG_clean", "gnomad_AF", "inheritance", "variant_id")
@@ -2555,8 +2555,23 @@ server <- function(input, output, session) {
   # ticked) that produces a nicely formatted .xlsx.
   export_target <- reactiveVal("variants")     # "variants" | "priority"
 
-  export_dataset <- function(target)
-    if (identical(target, "priority")) priority() else filtered()
+  # Lead-column order mirroring the interactive variant table (display name ->
+  # underlying column). Any columns not listed here keep their original order
+  # after these.
+  EXPORT_LEAD_ORDER <- c("SYMBOL", "Tier", "family_id", "Variant", "HGVSc",
+                         "HGVSp", "IMPACT", "TYPE", "CADD", "REVEL", "am_class",
+                         "SpliceAI_max", "CLNSIG_clean", "gnomad_AF",
+                         "inheritance")
+
+  export_dataset <- function(target) {
+    d <- if (identical(target, "priority")) priority() else filtered()
+    if (is.null(d) || nrow(d) == 0) return(d)
+    # Synthesise the same "Variant" column the interactive table shows
+    # (CHROM:POS REF>ALT), then order the leading columns to match that table.
+    d %>%
+      dplyr::mutate(Variant = sprintf("%s:%s %s>%s", CHROM, POS, REF, ALT)) %>%
+      dplyr::relocate(dplyr::any_of(EXPORT_LEAD_ORDER))
+  }
 
   export_default <- function(target, cols) {
     def <- EXPORT_DEFAULT_COLS
