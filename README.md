@@ -58,7 +58,7 @@ install.packages(c(
   "shiny", "bslib", "bsicons", "DT", "plotly",
   "ggplot2", "dplyr", "tidyr", "readr", "stringr",
   "forcats", "scales", "shinyFiles", "jsonlite",
-  "r3dmol", "httr"
+  "r3dmol", "httr", "patchwork"
 ))
 ```
 

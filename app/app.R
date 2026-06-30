@@ -701,6 +701,10 @@ ui <- function(request) page_sidebar(
     nav_panel(
       "Overview",
       icon = bsicons::bs_icon("bar-chart-line"),
+      div(class = "d-flex justify-content-end mb-2",
+          downloadButton("dl_overview", "Download figure (PNG)",
+                         class = "btn-sm btn-outline-secondary",
+                         icon = bsicons::bs_icon("image"))),
       layout_columns(
         col_widths = c(4, 4, 4),
         card(card_header("VEP impact"), plotOutput("p_impact", height = 340)),
@@ -1184,6 +1188,72 @@ server <- function(input, output, session) {
   output$p_cadd    <- renderPlot(plot_cadd(filtered(), input$priority_cadd))
   output$p_clnsig  <- renderPlot(plot_clnsig(filtered()))
   output$p_genes   <- renderPlot(plot_top_genes(filtered(), 25))
+
+  # ---- overview figure export (multi-panel PNG of the current filters) ------
+  # Concise one-line description of which filters are currently active, so the
+  # exported figure is self-documenting. Only non-default filters are listed.
+  overview_caption <- reactive({
+    d <- filtered()
+    counts <- sprintf(
+      "%s variants | %d genes | %d samples | %d ClinVar P/LP",
+      format(nrow(d), big.mark = ","), dplyr::n_distinct(d$SYMBOL),
+      dplyr::n_distinct(d$family_id), sum(d$is_pathLP))
+    parts <- c()
+    all_tiers <- sort(unique(raw()$Tier))
+    if (length(input$tier) && !setequal(input$tier, all_tiers))
+      parts <- c(parts, paste("Tier", paste(sort(input$tier), collapse = ",")))
+    if (length(input$genes))
+      parts <- c(parts, paste("Genes", paste(input$genes, collapse = ",")))
+    if (length(input$impact))
+      parts <- c(parts, paste("Impact", paste(input$impact, collapse = ",")))
+    if (length(input$type))
+      parts <- c(parts, paste("Type", paste(input$type, collapse = ",")))
+    if (length(input$clnsig))
+      parts <- c(parts, paste("ClinVar", paste(input$clnsig, collapse = ",")))
+    if (!is.null(input$cadd) && input$cadd > 0)
+      parts <- c(parts, sprintf("CADD>=%g", input$cadd))
+    if (!is.null(input$revel) && input$revel > 0)
+      parts <- c(parts, sprintf("REVEL>=%g", input$revel))
+    if (!is.null(input$gnomad) && !is.na(input$gnomad) && input$gnomad < 1)
+      parts <- c(parts, sprintf("gnomAD<=%g", input$gnomad))
+    if (isTRUE(input$exclude_am_benign))
+      parts <- c(parts, "AlphaMissense benign excluded")
+    if (!is.null(SAMPLE_INFO) && length(input$sample_group) < 3)
+      parts <- c(parts, paste("Group", paste(input$sample_group, collapse = ",")))
+    filt <- if (length(parts)) paste(parts, collapse = " | ") else
+      "no filters applied (all variants)"
+    paste0(counts, "\nFilters: ", filt)
+  })
+
+  output$dl_overview <- downloadHandler(
+    filename = function() sprintf("mactel_overview_%s.png", Sys.Date()),
+    content  = function(file) {
+      d <- filtered()
+      # A blank placeholder keeps the panel grid intact when a plot builder
+      # returns NULL (e.g. no CADD values, or no genes after filtering).
+      or_blank <- function(p, msg) if (!is.null(p)) p else
+        ggplot2::ggplot() +
+          ggplot2::annotate("text", x = 0, y = 0, label = msg,
+                            colour = "grey50", size = 4) +
+          ggplot2::theme_void()
+      fig <-
+        (plot_impact(d) | plot_type(d) | plot_inheritance(d)) /
+        (or_blank(plot_cadd(d, input$priority_cadd), "No CADD values") |
+           plot_clnsig(d)) /
+        or_blank(plot_top_genes(d, 15), "No genes to show") +
+        patchwork::plot_layout(heights = c(1, 1, 1.7)) +
+        patchwork::plot_annotation(
+          title    = "MacTel Variant Explorer - overview",
+          subtitle = overview_caption(),
+          caption  = format(Sys.Date()),
+          theme = ggplot2::theme(
+            plot.title    = ggplot2::element_text(face = "bold", size = 18),
+            plot.subtitle = ggplot2::element_text(size = 11, colour = "grey30"),
+            plot.caption  = ggplot2::element_text(size = 9, colour = "grey50")))
+      ggplot2::ggsave(file, fig, width = 13, height = 12, dpi = 200,
+                      bg = "white")
+    }
+  )
 
   # ---- scatter --------------------------------------------------------------
   output$scatter <- plotly::renderPlotly({
