@@ -128,6 +128,38 @@ format_sample_id <- function(fid, fmt = "AID") {
   ifelse(is.na(out) | !nzchar(out), fid, out)
 }
 
+# --- Excel export ------------------------------------------------------------
+# Sensible default column selection for the "Export to Excel" picker. The picker
+# offers every column present in the loaded data (all original Cavalier fields
+# plus the app's derived ones); these are just the ones ticked by default. Only
+# columns that actually exist are used, so this is safe across CSV variants.
+EXPORT_DEFAULT_COLS <- c(
+  "family_id", "SYMBOL", "Tier", "CHROM", "POS", "REF", "ALT",
+  "Consequence", "HGVSc", "HGVSp", "IMPACT", "TYPE",
+  "CADD", "REVEL", "am_class", "am_pathogenicity", "SpliceAI_max",
+  "CLNSIG", "CLNSIG_clean", "gnomad_AF", "inheritance", "variant_id")
+# Extra defaults when exporting the Priority variants tab.
+EXPORT_PRIORITY_EXTRA <- c("n_flags", "why_prioritised",
+                           "flag_clinvar", "flag_high", "flag_cadd")
+
+# Write a data frame to a nicely formatted .xlsx: a banded Excel table with a
+# styled header row, auto-filter, frozen header + first column, and column
+# widths sized to content (capped so long text columns stay readable).
+write_variants_xlsx <- function(df, file, sheet = "Variants") {
+  wb <- openxlsx::createWorkbook()
+  openxlsx::addWorksheet(wb, sheet)
+  openxlsx::writeDataTable(wb, sheet, df, tableStyle = "TableStyleMedium2",
+                           withFilter = TRUE, bandedRows = TRUE)
+  openxlsx::freezePane(wb, sheet, firstActiveRow = 2, firstActiveCol = 2)
+  widths <- vapply(seq_along(df), function(i) {
+    vals <- as.character(df[[i]]); vals <- vals[!is.na(vals)]
+    body <- if (length(vals)) max(nchar(vals)) else 0
+    min(max(body, nchar(names(df)[i]), 8) + 2, 45)
+  }, numeric(1))
+  openxlsx::setColWidths(wb, sheet, cols = seq_along(df), widths = widths)
+  openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
+}
+
 # Family grouping (from the manifest's Family_ID column, derived from the
 # clinical pedigree). FAMILY_OF maps an individual family_id -> its Family_ID;
 # FAMILY_MEMBERS maps a Family_ID -> the vector of member family_ids. Only
@@ -731,7 +763,10 @@ ui <- function(request) page_sidebar(
                     "or Sample to open the sample explorer",
                     class = "text-muted small ms-2"),
           downloadButton("dl_table", "Download CSV",
-                         class = "btn-sm btn-primary float-end")
+                         class = "btn-sm btn-primary float-end"),
+          actionButton("xl_table", "Export to Excel",
+                       icon = bsicons::bs_icon("file-earmark-spreadsheet"),
+                       class = "btn-sm btn-success float-end me-2")
         ),
         DT::DTOutput("variant_table")
       )
@@ -757,7 +792,10 @@ ui <- function(request) page_sidebar(
                     "or Sample to open the sample explorer",
                     class = "text-muted small ms-2"),
           downloadButton("dl_priority", "Download CSV",
-                         class = "btn-sm btn-primary float-end")
+                         class = "btn-sm btn-primary float-end"),
+          actionButton("xl_priority", "Export to Excel",
+                       icon = bsicons::bs_icon("file-earmark-spreadsheet"),
+                       class = "btn-sm btn-success float-end me-2")
         ),
         layout_columns(
           col_widths = c(7, 5),
@@ -2507,6 +2545,101 @@ server <- function(input, output, session) {
       readr::write_csv(d, file)
     }
   )
+
+  # ---- Excel export with column picker --------------------------------------
+  # Both the Variant table and Priority variants tabs share one modal: a column
+  # picker (offering every column in the loaded data, with a sensible default
+  # ticked) that produces a nicely formatted .xlsx.
+  export_target <- reactiveVal("variants")     # "variants" | "priority"
+
+  export_dataset <- function(target)
+    if (identical(target, "priority")) priority() else filtered()
+
+  export_default <- function(target, cols) {
+    def <- EXPORT_DEFAULT_COLS
+    if (identical(target, "priority")) def <- c(def, EXPORT_PRIORITY_EXTRA)
+    intersect(def, cols)
+  }
+
+  show_export_modal <- function(target) {
+    d <- export_dataset(target)
+    if (is.null(d) || nrow(d) == 0) {
+      showModal(modalDialog(
+        title = "Nothing to export", easyClose = TRUE,
+        "No variants match the current filters.",
+        footer = modalButton("Close")))
+      return(invisible())
+    }
+    cols    <- names(d)
+    labels  <- cols
+    labels[labels == "family_id"] <- "Sample (family_id)"
+    choices <- stats::setNames(cols, labels)
+    label   <- if (identical(target, "priority")) "priority variants" else
+               "filtered variants"
+    showModal(modalDialog(
+      title = sprintf("Export %s to Excel", label), size = "l",
+      easyClose = FALSE,
+      tags$p(class = "text-muted small",
+             sprintf("%s rows. Tick the columns to include, then download a formatted .xlsx table.",
+                     format(nrow(d), big.mark = ","))),
+      tags$style(HTML(".export-cols .checkbox{break-inside:avoid;margin:0 0 2px;}")),
+      div(class = "mb-2",
+          actionButton("export_all", "Select all",
+                       class = "btn-sm btn-outline-secondary"),
+          actionButton("export_reset", "Reset to default",
+                       class = "btn-sm btn-outline-secondary ms-1")),
+      div(class = "export-cols",
+          style = paste("column-count:3;column-gap:1.5rem;max-height:55vh;",
+                        "overflow-y:auto;border:1px solid #dee2e6;",
+                        "border-radius:6px;padding:10px;"),
+          checkboxGroupInput("export_cols", NULL, choices = choices,
+                             selected = export_default(target, cols),
+                             width = "100%")),
+      footer = tagList(
+        modalButton("Cancel"),
+        downloadButton("do_export_xlsx", "Download .xlsx",
+                       class = "btn-success"))
+    ))
+  }
+
+  observeEvent(input$xl_table,
+               { export_target("variants"); show_export_modal("variants") })
+  observeEvent(input$xl_priority,
+               { export_target("priority"); show_export_modal("priority") })
+
+  observeEvent(input$export_all, {
+    d <- export_dataset(export_target()); req(d)
+    updateCheckboxGroupInput(session, "export_cols", selected = names(d))
+  })
+  observeEvent(input$export_reset, {
+    d <- export_dataset(export_target()); req(d)
+    updateCheckboxGroupInput(session, "export_cols",
+                             selected = export_default(export_target(), names(d)))
+  })
+
+  output$do_export_xlsx <- downloadHandler(
+    filename = function() sprintf("%s_%s.xlsx",
+      if (identical(export_target(), "priority")) "priority_variants" else
+        "filtered_variants", Sys.Date()),
+    content = function(file) {
+      target <- export_target()
+      d <- export_dataset(target); req(d)
+      sel <- input$export_cols
+      if (is.null(sel) || length(sel) == 0)
+        sel <- export_default(target, names(d))
+      sel <- intersect(names(d), sel)          # keep original column order
+      out <- d[, sel, drop = FALSE]
+      if ("family_id" %in% names(out)) {
+        out$family_id <- fmt_sample(out$family_id)
+        names(out)[names(out) == "family_id"] <- "Sample"
+      }
+      out[] <- lapply(out, function(x) if (is.factor(x)) as.character(x) else x)
+      write_variants_xlsx(out, file, sheet =
+        if (identical(target, "priority")) "Priority variants" else "Variants")
+      removeModal()
+    }
+  )
+
   output$dl_genes <- downloadHandler(
     filename = function() sprintf("gene_summary_%s.csv", Sys.Date()),
     content  = function(file) readr::write_csv(gene_summary(), file)
