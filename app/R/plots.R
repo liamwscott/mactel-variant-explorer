@@ -74,13 +74,15 @@ plot_type <- function(df, palette = "Default") {
 plot_clnsig <- function(df, palette = "Default") {
   cnt <- dplyr::count(df, CLNSIG_clean, .drop = FALSE)
 
-  # Dynamic y-axis: when one category dwarfs the rest (e.g. Tier 2 genes where
-  # almost everything is "Not in ClinVar"), a base-10 log scale keeps the small
-  # but informative pathogenic categories readable. A pseudo-log transform is
-  # used so counts of 0 and 1 still render sensibly (plain log10 is undefined at
-  # 0 and flattens 1 to the baseline). Otherwise use a linear axis.
-  nz      <- sort(cnt$n[cnt$n > 0], decreasing = TRUE)
-  use_log <- length(nz) >= 2 && nz[1] >= 5 * nz[2]
+  # Dynamic y-axis: when the counts span a wide range (e.g. Tier 2 genes where
+  # almost everything is "Not in ClinVar" while the pathogenic categories have a
+  # handful each), the small but informative bars vanish on a linear scale. If
+  # the largest category is >= 20x the smallest non-zero one, switch to a
+  # base-10 log scale so every category stays readable. A pseudo-log transform
+  # is used so counts of 0 and 1 still render sensibly (plain log10 is undefined
+  # at 0 and flattens 1 to the baseline). Otherwise use a linear axis.
+  nz      <- cnt$n[cnt$n > 0]
+  use_log <- length(nz) >= 2 && (max(nz) / min(nz)) >= 20
   expand  <- ggplot2::expansion(mult = c(0, 0.18))
   y_scale <- if (use_log) {
     ggplot2::scale_y_continuous(
