@@ -747,9 +747,9 @@ ui <- function(request) page_sidebar(
       "Overview",
       icon = bsicons::bs_icon("bar-chart-line"),
       div(class = "d-flex justify-content-end mb-2",
-          downloadButton("dl_overview", "Download figure (PNG)",
-                         class = "btn-sm btn-outline-secondary",
-                         icon = bsicons::bs_icon("image"))),
+          actionButton("open_dl_overview", "Download figure (PNG)",
+                       class = "btn-sm btn-outline-secondary",
+                       icon = bsicons::bs_icon("image"))),
       layout_columns(
         col_widths = c(4, 4, 4),
         card(card_header("VEP impact"), plotOutput("p_impact", height = 340)),
@@ -1281,24 +1281,85 @@ server <- function(input, output, session) {
     paste0(counts, "\nFilters: ", filt)
   })
 
+  # Panel keys -> human labels for the download picker. Order here is the
+  # order panels are laid out in the exported figure.
+  OVERVIEW_PANELS <- c(
+    impact  = "VEP impact",
+    type    = "Variant type",
+    inherit = "Inheritance mode",
+    cadd    = "CADD distribution",
+    clnsig  = "ClinVar classification",
+    genes   = "Top genes by samples"
+  )
+
+  # Ask the user which panels + colour palette before generating the figure.
+  observeEvent(input$open_dl_overview, {
+    showModal(modalDialog(
+      title = "Download overview figure",
+      size  = "m",
+      easyClose = TRUE,
+      checkboxGroupInput(
+        "ov_panels", "Panels to include:",
+        choices  = stats::setNames(names(OVERVIEW_PANELS), unname(OVERVIEW_PANELS)),
+        selected = names(OVERVIEW_PANELS)),
+      radioButtons(
+        "ov_palette", "Colour palette:",
+        choices  = c("Default", "Viridis", "Colour-blind"),
+        selected = "Default", inline = TRUE),
+      footer = tagList(
+        modalButton("Cancel"),
+        downloadButton("dl_overview", "Download PNG",
+                       class = "btn-primary",
+                       icon = bsicons::bs_icon("download")))
+    ))
+  })
+
   output$dl_overview <- downloadHandler(
     filename = function() sprintf("mactel_overview_%s.png", Sys.Date()),
     content  = function(file) {
-      d <- filtered()
-      # A blank placeholder keeps the panel grid intact when a plot builder
-      # returns NULL (e.g. no CADD values, or no genes after filtering).
+      d   <- filtered()
+      pal <- input$ov_palette %||% "Default"
+      sel <- input$ov_panels
+      if (is.null(sel) || length(sel) == 0) sel <- names(OVERVIEW_PANELS)
+      # keep the canonical panel order regardless of tick order
+      sel <- names(OVERVIEW_PANELS)[names(OVERVIEW_PANELS) %in% sel]
+
+      # A blank placeholder keeps the grid intact when a plot builder returns
+      # NULL (e.g. no CADD values, or no genes after filtering).
       or_blank <- function(p, msg) if (!is.null(p)) p else
         ggplot2::ggplot() +
           ggplot2::annotate("text", x = 0, y = 0, label = msg,
                             colour = "grey50", size = 4) +
           ggplot2::theme_void()
-      fig <-
-        (plot_impact(d) | plot_type(d) | plot_inheritance(d)) /
-        (or_blank(plot_cadd(d, input$priority_cadd), "No CADD values") |
-           plot_clnsig(d)) /
-        or_blank(plot_top_genes(d, 15, group_lookup = DIAG_GROUP_LOOKUP),
-                 "No genes to show") +
-        patchwork::plot_layout(heights = c(1, 1, 1.7)) +
+
+      builders <- list(
+        impact  = function() plot_impact(d, palette = pal),
+        type    = function() plot_type(d, palette = pal),
+        inherit = function() plot_inheritance(d, palette = pal),
+        cadd    = function() or_blank(
+          plot_cadd(d, input$priority_cadd, palette = pal), "No CADD values"),
+        clnsig  = function() plot_clnsig(d, palette = pal),
+        genes   = function() or_blank(
+          plot_top_genes(d, 15, group_lookup = DIAG_GROUP_LOOKUP, palette = pal),
+          "No genes to show")
+      )
+      panels <- lapply(sel, function(k) builders[[k]]())
+
+      # "genes" is a tall horizontal bar chart, so give it a full-width row of
+      # its own; the remaining panels flow two-per-row above it.
+      has_genes <- "genes" %in% sel
+      compact   <- panels[sel != "genes"]
+      pieces <- list()
+      if (length(compact) > 0)
+        pieces <- c(pieces, list(patchwork::wrap_plots(compact, ncol = 2)))
+      if (has_genes)
+        pieces <- c(pieces, list(panels[[which(sel == "genes")]]))
+
+      heights <- if (length(compact) > 0 && has_genes) {
+        c(ceiling(length(compact) / 2), 1.7)
+      } else NULL
+
+      fig <- patchwork::wrap_plots(pieces, ncol = 1, heights = heights) +
         patchwork::plot_annotation(
           title    = "MacTel Variant Explorer - overview",
           subtitle = overview_caption(),
@@ -1307,10 +1368,13 @@ server <- function(input, output, session) {
             plot.title    = ggplot2::element_text(face = "bold", size = 18),
             plot.subtitle = ggplot2::element_text(size = 11, colour = "grey30"),
             plot.caption  = ggplot2::element_text(size = 9, colour = "grey50")))
+
+      n_rows <- length(pieces)
       # device = "png" is required: downloadHandler hands us an extension-less
       # temp path, so ggsave cannot infer the format from the filename.
-      ggplot2::ggsave(file, fig, device = "png", width = 13, height = 12,
-                      dpi = 200, bg = "white")
+      ggplot2::ggsave(file, fig, device = "png", width = 13,
+                      height = max(5, 4.2 * n_rows), dpi = 200, bg = "white")
+      removeModal()
     }
   )
 

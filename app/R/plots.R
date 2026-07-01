@@ -14,74 +14,95 @@ theme_app <- function(...) {
     ggplot2::theme(...)
 }
 
+# Angled x-axis tick labels, shared by the categorical overview bar charts so
+# crowded category names do not overlap.
+angle_x <- function() ggplot2::element_text(angle = 45, hjust = 1)
+
+# Remap a named default palette to an alternative colour scheme while keeping
+# the same category names/levels. "Default" returns the semantic palette
+# unchanged; alternatives use base-R viridis and an Okabe-Ito colour-blind-safe
+# set (no extra package dependencies).
+apply_palette <- function(default_named, palette = "Default") {
+  if (is.null(palette) || palette == "Default") return(default_named)
+  n <- length(default_named)
+  cols <- switch(palette,
+    "Viridis"      = grDevices::hcl.colors(n, "Viridis"),
+    "Colour-blind" = rep(c("#E69F00", "#56B4E9", "#009E73", "#F0E442",
+                           "#0072B2", "#D55E00", "#CC79A7", "#000000"),
+                         length.out = n),
+    default_named)
+  stats::setNames(unname(cols), names(default_named))
+}
+
 # --- IMPACT distribution -----------------------------------------------------
-plot_impact <- function(df) {
+plot_impact <- function(df, palette = "Default") {
   df %>%
     dplyr::count(IMPACT, .drop = FALSE) %>%
     ggplot2::ggplot(ggplot2::aes(IMPACT, n, fill = IMPACT)) +
     ggplot2::geom_col(colour = "white", width = 0.7) +
     ggplot2::geom_text(ggplot2::aes(label = n), vjust = -0.4,
                        fontface = "bold", size = 3.5) +
-    ggplot2::scale_fill_manual(values = COL_IMPACT, drop = FALSE) +
+    ggplot2::scale_fill_manual(values = apply_palette(COL_IMPACT, palette),
+                               drop = FALSE) +
     ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
     ggplot2::labs(title = "VEP impact", x = NULL, y = "Variants") +
-    theme_app(legend.position = "none")
+    theme_app(legend.position = "none", axis.text.x = angle_x())
 }
 
 # --- Variant TYPE ------------------------------------------------------------
-plot_type <- function(df) {
+plot_type <- function(df, palette = "Default") {
   df %>%
     dplyr::count(TYPE, .drop = FALSE) %>%
     ggplot2::ggplot(ggplot2::aes(TYPE, n, fill = TYPE)) +
     ggplot2::geom_col(colour = "white", width = 0.7) +
     ggplot2::geom_text(ggplot2::aes(label = n), vjust = -0.4,
                        fontface = "bold", size = 3.5) +
-    ggplot2::scale_fill_manual(values = COL_TYPE, drop = FALSE) +
+    ggplot2::scale_fill_manual(values = apply_palette(COL_TYPE, palette),
+                               drop = FALSE) +
     ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
     ggplot2::labs(title = "Variant type", x = NULL, y = "Variants") +
-    theme_app(legend.position = "none")
+    theme_app(legend.position = "none", axis.text.x = angle_x())
 }
 
 # --- ClinVar -----------------------------------------------------------------
-plot_clnsig <- function(df) {
+plot_clnsig <- function(df, palette = "Default") {
   df %>%
     dplyr::count(CLNSIG_clean, .drop = FALSE) %>%
     ggplot2::ggplot(ggplot2::aes(CLNSIG_clean, n, fill = CLNSIG_clean)) +
     ggplot2::geom_col(colour = "white", width = 0.7) +
     ggplot2::geom_text(ggplot2::aes(label = n), vjust = -0.4,
                        fontface = "bold", size = 3.2) +
-    ggplot2::scale_fill_manual(values = COL_CLNSIG, drop = FALSE) +
+    ggplot2::scale_fill_manual(values = apply_palette(COL_CLNSIG, palette),
+                               drop = FALSE) +
     ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
     ggplot2::scale_x_discrete(labels = function(x)
       stringr::str_wrap(gsub("_", " ", x), 12)) +
     ggplot2::labs(title = "ClinVar classification", x = NULL, y = "Variants") +
     theme_app(legend.position = "none",
-              axis.text.x = ggplot2::element_text(size = 8))
+              axis.text.x = ggplot2::element_text(angle = 45, hjust = 1,
+                                                  size = 8))
 }
 
 # --- CADD histogram ----------------------------------------------------------
-plot_cadd <- function(df, threshold = 20) {
+plot_cadd <- function(df, threshold = 20, palette = "Default") {
   d <- dplyr::filter(df, !is.na(CADD))
   if (nrow(d) == 0) return(NULL)
   ggplot2::ggplot(d, ggplot2::aes(CADD, fill = IMPACT)) +
     ggplot2::geom_histogram(binwidth = 2, colour = "white", alpha = 0.9) +
     ggplot2::geom_vline(xintercept = threshold, linetype = "dashed",
                         colour = "red", linewidth = 0.8) +
-    ggplot2::scale_fill_manual(values = COL_IMPACT, drop = FALSE,
-                               name = "Impact") +
+    ggplot2::scale_fill_manual(values = apply_palette(COL_IMPACT, palette),
+                               drop = FALSE, name = "Impact") +
     ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.08))) +
-    ggplot2::labs(title = "CADD distribution",
-                  subtitle = sprintf("dashed line = CADD %g", threshold),
-                  x = "CADD", y = "Count") +
+    ggplot2::labs(title = "CADD distribution", x = "CADD", y = "Count") +
     theme_app()
 }
 
 # --- Inheritance -------------------------------------------------------------
-plot_inheritance <- function(df) {
-  df %>%
-    dplyr::count(inheritance) %>%
-    ggplot2::ggplot(ggplot2::aes(stats::reorder(inheritance, n), n,
-                                 fill = inheritance)) +
+plot_inheritance <- function(df, palette = "Default") {
+  cnt <- dplyr::count(df, inheritance)
+  p <- ggplot2::ggplot(cnt, ggplot2::aes(stats::reorder(inheritance, n), n,
+                                         fill = inheritance)) +
     ggplot2::geom_col(colour = "white", width = 0.7) +
     ggplot2::geom_text(ggplot2::aes(label = n), hjust = -0.2,
                        fontface = "bold", size = 3.5) +
@@ -89,6 +110,13 @@ plot_inheritance <- function(df) {
     ggplot2::coord_flip() +
     ggplot2::labs(title = "Inheritance mode", x = NULL, y = "Variants") +
     theme_app(legend.position = "none")
+  # Only override the default hue palette when an alternative is requested.
+  if (!is.null(palette) && palette != "Default") {
+    lv <- sort(unique(as.character(cnt$inheritance)))
+    def <- stats::setNames(seq_along(lv), lv)   # names carry the levels
+    p <- p + ggplot2::scale_fill_manual(values = apply_palette(def, palette))
+  }
+  p
 }
 
 # --- Top genes by sample count ----------------------------------------------
@@ -99,7 +127,8 @@ plot_inheritance <- function(df) {
 #'                 in the data, bars are split into a stacked, diagnosis-coloured
 #'                 chart; otherwise a single-colour bar is drawn (e.g. when only
 #'                 MacTel patients are in view, there is nothing to distinguish).
-plot_top_genes <- function(df, n_top = 25, group_lookup = NULL) {
+plot_top_genes <- function(df, n_top = 25, group_lookup = NULL,
+                           palette = "Default") {
   # Total distinct samples per gene: this picks and orders the top genes, and
   # (in the stacked case) is the total drawn at the end of each bar.
   totals <- df %>%
@@ -155,8 +184,8 @@ plot_top_genes <- function(df, n_top = 25, group_lookup = NULL) {
     ggplot2::geom_text(data = totlab, inherit.aes = FALSE,
                        ggplot2::aes(n_samples, SYMBOL, label = n_samples),
                        hjust = -0.2, size = 3, fontface = "bold") +
-    ggplot2::scale_fill_manual(values = COL_DIAG, drop = TRUE,
-                               name = "Diagnosis") +
+    ggplot2::scale_fill_manual(values = apply_palette(COL_DIAG, palette),
+                               drop = TRUE, name = "Diagnosis") +
     ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
     ggplot2::labs(title = sprintf("Top %d genes by samples", n_top),
                   x = "Samples", y = NULL) +
