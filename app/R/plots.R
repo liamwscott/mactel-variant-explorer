@@ -91,21 +91,72 @@ plot_inheritance <- function(df) {
     theme_app(legend.position = "none")
 }
 
-# --- Top genes by family count ----------------------------------------------
-plot_top_genes <- function(df, n_top = 25) {
-  d <- df %>%
+# --- Top genes by sample count ----------------------------------------------
+#' Horizontal bar chart of the genes carrying variants in the most samples.
+#'   group_lookup: optional named character vector mapping family_id ->
+#'                 diagnosis group ("MacTel", "HSAN1", "MacTel + HSAN1",
+#'                 "Control"). When supplied AND two or more groups are present
+#'                 in the data, bars are split into a stacked, diagnosis-coloured
+#'                 chart; otherwise a single-colour bar is drawn (e.g. when only
+#'                 MacTel patients are in view, there is nothing to distinguish).
+plot_top_genes <- function(df, n_top = 25, group_lookup = NULL) {
+  # Total distinct samples per gene: this picks and orders the top genes, and
+  # (in the stacked case) is the total drawn at the end of each bar.
+  totals <- df %>%
     dplyr::group_by(SYMBOL) %>%
-    dplyr::summarise(n_samples  = dplyr::n_distinct(family_id),
-                     n_variants = dplyr::n(), .groups = "drop") %>%
+    dplyr::summarise(n_samples = dplyr::n_distinct(family_id), .groups = "drop") %>%
     dplyr::arrange(dplyr::desc(n_samples)) %>%
     dplyr::slice_head(n = n_top)
-  if (nrow(d) == 0) return(NULL)
-  d %>%
-    dplyr::mutate(SYMBOL = forcats::fct_reorder(SYMBOL, n_samples)) %>%
-    ggplot2::ggplot(ggplot2::aes(n_samples, SYMBOL)) +
-    ggplot2::geom_col(fill = "#4C72B0", colour = "white", width = 0.7) +
-    ggplot2::geom_text(ggplot2::aes(label = n_samples), hjust = -0.2,
-                       size = 3, fontface = "bold") +
+  if (nrow(totals) == 0) return(NULL)
+  gene_levels <- totals$SYMBOL[order(totals$n_samples)]   # ascending for the y axis
+
+  # Which diagnosis groups are actually represented among these variants?
+  groups_present <- character(0)
+  if (!is.null(group_lookup)) {
+    g <- unname(group_lookup[as.character(df$family_id)])
+    groups_present <- sort(unique(g[!is.na(g)]))
+  }
+
+  # Single group (or no lookup): plain single-colour bar with count labels.
+  if (length(groups_present) < 2) {
+    d <- totals %>%
+      dplyr::mutate(SYMBOL = factor(SYMBOL, levels = gene_levels))
+    return(
+      ggplot2::ggplot(d, ggplot2::aes(n_samples, SYMBOL)) +
+        ggplot2::geom_col(fill = "#4C72B0", colour = "white", width = 0.7) +
+        ggplot2::geom_text(ggplot2::aes(label = n_samples), hjust = -0.2,
+                           size = 3, fontface = "bold") +
+        ggplot2::scale_x_continuous(
+          expand = ggplot2::expansion(mult = c(0, 0.12))) +
+        ggplot2::labs(title = sprintf("Top %d genes by samples", n_top),
+                      x = "Samples", y = NULL) +
+        theme_app(legend.position = "none")
+    )
+  }
+
+  # Two or more groups: stacked bar coloured by diagnosis. Count distinct
+  # samples per (gene, group); each sample maps to exactly one group, so the
+  # segments sum to the per-gene total drawn at the bar end.
+  dd <- df %>%
+    dplyr::filter(SYMBOL %in% totals$SYMBOL) %>%
+    dplyr::mutate(diag_group = unname(group_lookup[as.character(family_id)])) %>%
+    dplyr::filter(!is.na(diag_group)) %>%
+    dplyr::distinct(SYMBOL, family_id, diag_group) %>%
+    dplyr::count(SYMBOL, diag_group, name = "n_samples") %>%
+    dplyr::mutate(
+      SYMBOL     = factor(SYMBOL, levels = gene_levels),
+      diag_group = factor(diag_group,
+                          levels = intersect(names(COL_DIAG), groups_present)))
+  totlab <- totals %>%
+    dplyr::mutate(SYMBOL = factor(SYMBOL, levels = gene_levels))
+
+  ggplot2::ggplot(dd, ggplot2::aes(n_samples, SYMBOL, fill = diag_group)) +
+    ggplot2::geom_col(colour = "white", width = 0.7) +
+    ggplot2::geom_text(data = totlab, inherit.aes = FALSE,
+                       ggplot2::aes(n_samples, SYMBOL, label = n_samples),
+                       hjust = -0.2, size = 3, fontface = "bold") +
+    ggplot2::scale_fill_manual(values = COL_DIAG, drop = TRUE,
+                               name = "Diagnosis") +
     ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
     ggplot2::labs(title = sprintf("Top %d genes by samples", n_top),
                   x = "Samples", y = NULL) +

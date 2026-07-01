@@ -27,6 +27,13 @@ COL_CLNSIG <- c("Pathogenic"                   = "#D62728",
                 "Benign/Likely_benign"          = "#2CA02C",
                 "Not in ClinVar"                = "#DDDDDD")
 
+# Diagnosis-group palette (matches the carrier-badge / Family-explorer legend).
+# Order here is also the stacking order in the top-genes bar chart.
+COL_DIAG <- c("MacTel"         = "#C62828",
+              "HSAN1"          = "#1565C0",
+              "MacTel + HSAN1" = "#6A1B9A",
+              "Control"        = "#546E7A")
+
 #' Clean a raw Cavalier dataframe into the structure the app expects.
 clean_variants <- function(df) {
   stopifnot(is.data.frame(df))

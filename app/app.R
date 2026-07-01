@@ -119,6 +119,18 @@ if (!is.null(SAMPLE_INFO) && "family_id" %in% names(SAMPLE_INFO)) {
   }
 }
 
+# family_id -> diagnosis group, for the stacked top-genes bar chart. One group
+# per sample, mirroring diag_colour(): both -> "MacTel + HSAN1", else MacTel /
+# HSAN1 / Control. NULL when no sample info is available.
+DIAG_GROUP_LOOKUP <- NULL
+if (!is.null(SAMPLE_INFO) &&
+    all(c("family_id", "is_mactel", "is_hsan1") %in% names(SAMPLE_INFO))) {
+  grp <- ifelse(SAMPLE_INFO$is_mactel & SAMPLE_INFO$is_hsan1, "MacTel + HSAN1",
+         ifelse(SAMPLE_INFO$is_mactel, "MacTel",
+         ifelse(SAMPLE_INFO$is_hsan1,  "HSAN1", "Control")))
+  DIAG_GROUP_LOOKUP <- stats::setNames(grp, SAMPLE_INFO$family_id)
+}
+
 # Map a vector of family_ids to display labels for the chosen format ("AID" or
 # "Patient ID"). Vectorised; preserves order; blanks/NAs fall back to family_id.
 format_sample_id <- function(fid, fmt = "AID") {
@@ -1226,7 +1238,8 @@ server <- function(input, output, session) {
   output$p_inherit <- renderPlot(plot_inheritance(filtered()))
   output$p_cadd    <- renderPlot(plot_cadd(filtered(), input$priority_cadd))
   output$p_clnsig  <- renderPlot(plot_clnsig(filtered()))
-  output$p_genes   <- renderPlot(plot_top_genes(filtered(), 25))
+  output$p_genes   <- renderPlot(
+    plot_top_genes(filtered(), 25, group_lookup = DIAG_GROUP_LOOKUP))
 
   # ---- overview figure export (multi-panel PNG of the current filters) ------
   # Concise one-line description of which filters are currently active, so the
@@ -1279,7 +1292,8 @@ server <- function(input, output, session) {
         (plot_impact(d) | plot_type(d) | plot_inheritance(d)) /
         (or_blank(plot_cadd(d, input$priority_cadd), "No CADD values") |
            plot_clnsig(d)) /
-        or_blank(plot_top_genes(d, 15), "No genes to show") +
+        or_blank(plot_top_genes(d, 15, group_lookup = DIAG_GROUP_LOOKUP),
+                 "No genes to show") +
         patchwork::plot_layout(heights = c(1, 1, 1.7)) +
         patchwork::plot_annotation(
           title    = "MacTel Variant Explorer - overview",
@@ -1422,7 +1436,7 @@ server <- function(input, output, session) {
   output$p_priority_genes <- renderPlot({
     d <- priority()
     validate(need(nrow(d) > 0, "No variants meet the chosen number of flags."))
-    plot_top_genes(d, 20)
+    plot_top_genes(d, 20, group_lookup = DIAG_GROUP_LOOKUP)
   })
 
   # ---- gene summary ---------------------------------------------------------
