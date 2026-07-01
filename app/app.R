@@ -1590,7 +1590,7 @@ server <- function(input, output, session) {
         Types       = paste(sort(unique(as.character(TYPE))), collapse = "/"),
         .groups = "drop") %>%
       dplyr::mutate(REVEL_max = ifelse(is.infinite(REVEL_max), NA, REVEL_max)) %>%
-      dplyr::arrange(dplyr::desc(Samples), dplyr::desc(CADD_max))
+      dplyr::arrange(dplyr::desc(Variants), dplyr::desc(Samples))
   })
 
   output$gene_table <- DT::renderDT({
@@ -1598,7 +1598,7 @@ server <- function(input, output, session) {
     DT::datatable(g, rownames = FALSE, filter = "top",
                   selection = "none", escape = FALSE,
                   options = list(pageLength = 25, scrollX = TRUE,
-                                 order = order_desc_by(g, "CADD_max"),
+                                 order = order_desc_by(g, "Variants"),
                                  headerCallback = header_tips_cb()))
   })
 
@@ -1676,8 +1676,11 @@ server <- function(input, output, session) {
         ClinVar = CLNSIG_clean, gnomAD_AF = signif(gnomad_AF, 3),
         Inheritance = inheritance)
     DT::datatable(tbl, rownames = FALSE, selection = "none", escape = FALSE,
+                  # Rows arrive pre-sorted by descending carrier count; an empty
+                  # order preserves that (the "n/total" Carriers string cannot be
+                  # sorted numerically by DT).
                   options = list(pageLength = 15, scrollX = TRUE,
-                                 order = order_desc_by(tbl, "CADD"),
+                                 order = list(),
                                  headerCallback = header_tips_cb())) %>%
       DT::formatStyle("ClinVar",
                       backgroundColor = DT::styleEqual(
