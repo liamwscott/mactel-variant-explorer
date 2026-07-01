@@ -146,11 +146,12 @@ format_sample_id <- function(fid, fmt = "AID") {
 # offers every column present in the loaded data (all original Cavalier fields
 # plus the app's derived ones); these are just the ones ticked by default. Only
 # columns that actually exist are used, so this is safe across CSV variants.
-# These mirror the six columns shown in the gene report / gene-landing table:
-# Sample, Variant, HGVSp (protein change without the transcript prefix),
-# Impact, CADD and ClinVar class.
+# These mirror the columns shown in the gene report / gene-landing table
+# (Sample, Variant, HGVSp protein change without the transcript prefix, Impact,
+# CADD, ClinVar class) plus the gene SYMBOL and the variant Consequence.
 EXPORT_DEFAULT_COLS <- c(
-  "family_id", "Variant", "HGVSp_short", "IMPACT", "CADD", "CLNSIG_clean")
+  "SYMBOL", "family_id", "Variant", "HGVSp_short", "Consequence",
+  "IMPACT", "CADD", "CLNSIG_clean")
 # Extra defaults when exporting the Priority variants tab.
 EXPORT_PRIORITY_EXTRA <- c("n_flags", "why_prioritised",
                            "flag_clinvar", "flag_high", "flag_cadd")
@@ -2859,9 +2860,9 @@ server <- function(input, output, session) {
   # underlying column). Any columns not listed here keep their original order
   # after these.
   EXPORT_LEAD_ORDER <- c("SYMBOL", "Tier", "family_id", "Variant", "HGVSc",
-                         "HGVSp", "HGVSp_short", "IMPACT", "TYPE", "CADD",
-                         "REVEL", "am_class", "SpliceAI_max", "CLNSIG_clean",
-                         "gnomad_AF", "inheritance")
+                         "HGVSp", "HGVSp_short", "Consequence", "IMPACT",
+                         "TYPE", "CADD", "REVEL", "am_class", "SpliceAI_max",
+                         "CLNSIG_clean", "gnomad_AF", "inheritance")
 
   export_dataset <- function(target) {
     d <- if (identical(target, "priority")) priority() else filtered()
