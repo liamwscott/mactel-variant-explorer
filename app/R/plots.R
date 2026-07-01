@@ -184,7 +184,8 @@ plot_top_genes <- function(df, n_top = 25, group_lookup = NULL,
           expand = ggplot2::expansion(mult = c(0, 0.12))) +
         ggplot2::labs(title = sprintf("Top %d genes by samples", n_top),
                       x = "Samples", y = NULL) +
-        theme_app(legend.position = "none")
+        theme_app(legend.position = "none",
+                  axis.text.y = ggplot2::element_text(face = "italic"))
     )
   }
 
@@ -214,7 +215,7 @@ plot_top_genes <- function(df, n_top = 25, group_lookup = NULL,
     ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
     ggplot2::labs(title = sprintf("Top %d genes by samples", n_top),
                   x = "Samples", y = NULL) +
-    theme_app()
+    theme_app(axis.text.y = ggplot2::element_text(face = "italic"))
 }
 
 # --- CADD vs REVEL scatter (interactive via plotly) --------------------------
@@ -260,8 +261,12 @@ aa_position <- function(hgvsp) {
 #'              FALSE so the plot stays uncluttered.
 #' Lollipop height = CADD, colour = ClinVar class, size = #samples carrying it.
 #' Pfam domains are drawn as boxes on the protein backbone beneath the stems.
+#'   italic_gene: if TRUE, italicise the gene symbol in the plot title via a
+#'              plotmath expression. Left FALSE for the interactive view because
+#'              ggplotly cannot convert plotmath titles (that view italicises the
+#'              gene with an HTML tag after conversion instead).
 plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
-                                  label_all = FALSE) {
+                                  label_all = FALSE, italic_gene = FALSE) {
   v <- gene_df %>%
     dplyr::mutate(
       aa  = aa_position(HGVSp_short),
@@ -370,7 +375,9 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
                                 expand = ggplot2::expansion(mult = c(0.01, 0.03))) +
     ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.02, 0.24))) +
     ggplot2::labs(
-      title    = sprintf("%s protein lollipop", gene),
+      title    = if (isTRUE(italic_gene))
+                   bquote(italic(.(gene)) * " protein lollipop")
+                 else sprintf("%s protein lollipop", gene),
       subtitle = sprintf("%g aa | height = CADD (dashed = 20) | colour = ClinVar | size = #samples",
                          prot_len),
       x = "Amino-acid position", y = "CADD") +

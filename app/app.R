@@ -2453,7 +2453,8 @@ server <- function(input, output, session) {
     sel_key <- if (has_row) paste(row$CHROM, row$POS, row$REF, row$ALT) else NULL
     # Gene report (no single variant): label every position on the lollipop.
     p <- tryCatch(plot_variant_lollipop(gdf, ddf, gene, sel_key,
-                                        label_all = !has_row),
+                                        label_all = !has_row,
+                                        italic_gene = TRUE),
                   error = function(e) NULL)
     plot_html <- "<p class='muted'>No protein-coding positions to plot for this gene.</p>"
     if (!is.null(p)) {
@@ -2679,7 +2680,11 @@ server <- function(input, output, session) {
     validate(need(!is.null(p),
                   "No protein-coding (amino-acid) positions to plot for this gene."))
     gg <- plotly::ggplotly(p, tooltip = "text", source = "lollipop") %>%
-      plotly::event_register("plotly_click")
+      plotly::event_register("plotly_click") %>%
+      # ggplotly cannot render a plotmath italic title, so italicise the gene
+      # symbol here with an HTML tag (the subtitle is dropped by ggplotly anyway).
+      plotly::layout(title = list(
+        text = sprintf("<i>%s</i> protein lollipop", gene)))
     # ggplotly drops ggplot annotations, so re-add the non-coding disclaimer
     # as a native plotly annotation when the selected variant can't be drawn.
     if (isTRUE(attr(p, "sel_not_coding"))) {
@@ -2711,7 +2716,8 @@ server <- function(input, output, session) {
       sel_key <- if (!is.null(row) && nrow(row) > 0)
         paste(row$CHROM, row$POS, row$REF, row$ALT) else NULL
       p <- tryCatch(plot_variant_lollipop(gdf, ddf, gene, sel_key,
-                                          label_all = TRUE),
+                                          label_all = TRUE,
+                                          italic_gene = TRUE),
                     error = function(e) NULL)
       req(!is.null(p))
       p <- p +
