@@ -146,11 +146,11 @@ format_sample_id <- function(fid, fmt = "AID") {
 # offers every column present in the loaded data (all original Cavalier fields
 # plus the app's derived ones); these are just the ones ticked by default. Only
 # columns that actually exist are used, so this is safe across CSV variants.
+# These mirror the six columns shown in the gene report / gene-landing table:
+# Sample, Variant, HGVSp (protein change without the transcript prefix),
+# Impact, CADD and ClinVar class.
 EXPORT_DEFAULT_COLS <- c(
-  "family_id", "SYMBOL", "Tier", "Variant", "CHROM", "POS", "REF", "ALT",
-  "Consequence", "HGVSc", "HGVSp", "IMPACT", "TYPE",
-  "CADD", "REVEL", "am_class", "am_pathogenicity", "SpliceAI_max",
-  "CLNSIG", "CLNSIG_clean", "gnomad_AF", "inheritance", "variant_id")
+  "family_id", "Variant", "HGVSp_short", "IMPACT", "CADD", "CLNSIG_clean")
 # Extra defaults when exporting the Priority variants tab.
 EXPORT_PRIORITY_EXTRA <- c("n_flags", "why_prioritised",
                            "flag_clinvar", "flag_high", "flag_cadd")
@@ -2327,6 +2327,10 @@ server <- function(input, output, session) {
         DT::DTOutput("gene_variant_table")
       ),
       plotly::plotlyOutput("lollipop", height = 430),
+      div(class = "d-flex justify-content-end mt-1",
+          downloadButton("dl_lollipop", "Download plot (PNG)",
+                         class = "btn-sm btn-outline-secondary",
+                         icon = bsicons::bs_icon("image"))),
       structure_section(),
       easyClose = TRUE, size = "xl",
       footer = uiOutput("report_footer")
@@ -2667,6 +2671,41 @@ server <- function(input, output, session) {
     gg
   })
 
+  # Static PNG of the protein lollipop for the gene currently in the modal.
+  # Every position is labelled (as in the gene report) so the image stands
+  # alone without the interactive hover, and the legend sits below the plot so
+  # the lollipop uses the full width.
+  output$dl_lollipop <- downloadHandler(
+    filename = function() sprintf("%s_lollipop_%s.png",
+                                  modal_gene() %||% "gene", Sys.Date()),
+    content  = function(file) {
+      gene <- modal_gene(); req(gene)
+      gdf  <- dplyr::filter(raw(), SYMBOL == gene)
+      ddf  <- if (!is.null(PROTEIN_DOMAINS))
+        dplyr::filter(PROTEIN_DOMAINS, SYMBOL == gene) else NULL
+      row     <- modal_variant()
+      sel_key <- if (!is.null(row) && nrow(row) > 0)
+        paste(row$CHROM, row$POS, row$REF, row$ALT) else NULL
+      p <- tryCatch(plot_variant_lollipop(gdf, ddf, gene, sel_key,
+                                          label_all = TRUE),
+                    error = function(e) NULL)
+      req(!is.null(p))
+      p <- p +
+        ggplot2::theme(
+          legend.position = "bottom",
+          legend.box      = "vertical",
+          legend.title    = ggplot2::element_text(size = 9),
+          legend.text     = ggplot2::element_text(size = 8)) +
+        ggplot2::guides(
+          colour = ggplot2::guide_legend(order = 1, nrow = 2, byrow = TRUE,
+                                         override.aes = list(size = 3.5)),
+          size   = ggplot2::guide_legend(order = 2, nrow = 1),
+          fill   = ggplot2::guide_legend(order = 3, ncol = 1))
+      ggplot2::ggsave(file, p, device = "png", width = 11, height = 6.4,
+                      dpi = 200, bg = "white")
+    }
+  )
+
   # Clicking a point in the lollipop switches the active variant.
   observeEvent(plotly::event_data("plotly_click", source = "lollipop"), {
     ed   <- plotly::event_data("plotly_click", source = "lollipop")
@@ -2820,18 +2859,20 @@ server <- function(input, output, session) {
   # underlying column). Any columns not listed here keep their original order
   # after these.
   EXPORT_LEAD_ORDER <- c("SYMBOL", "Tier", "family_id", "Variant", "HGVSc",
-                         "HGVSp", "IMPACT", "TYPE", "CADD", "REVEL", "am_class",
-                         "SpliceAI_max", "CLNSIG_clean", "gnomad_AF",
-                         "inheritance")
+                         "HGVSp", "HGVSp_short", "IMPACT", "TYPE", "CADD",
+                         "REVEL", "am_class", "SpliceAI_max", "CLNSIG_clean",
+                         "gnomad_AF", "inheritance")
 
   export_dataset <- function(target) {
     d <- if (identical(target, "priority")) priority() else filtered()
     if (is.null(d) || nrow(d) == 0) return(d)
     # Synthesise the same "Variant" column the interactive table shows
-    # (CHROM:POS REF>ALT), then order the leading columns to match that table.
+    # (CHROM:POS REF>ALT), order the leading columns to match that table, and
+    # rank rows by descending CADD (NAs last) as everywhere else in the app.
     d %>%
       dplyr::mutate(Variant = sprintf("%s:%s %s>%s", CHROM, POS, REF, ALT)) %>%
-      dplyr::relocate(dplyr::any_of(EXPORT_LEAD_ORDER))
+      dplyr::relocate(dplyr::any_of(EXPORT_LEAD_ORDER)) %>%
+      dplyr::arrange(dplyr::desc(CADD))
   }
 
   export_default <- function(target, cols) {
@@ -2851,7 +2892,8 @@ server <- function(input, output, session) {
     }
     cols    <- names(d)
     labels  <- cols
-    labels[labels == "family_id"] <- "Sample (family_id)"
+    labels[labels == "family_id"]   <- "Sample (family_id)"
+    labels[labels == "HGVSp_short"] <- "HGVSp (protein change, no prefix)"
     choices <- stats::setNames(cols, labels)
     label   <- if (identical(target, "priority")) "priority variants" else
                "filtered variants"
@@ -2865,6 +2907,8 @@ server <- function(input, output, session) {
       div(class = "mb-2",
           actionButton("export_all", "Select all",
                        class = "btn-sm btn-outline-secondary"),
+          actionButton("export_none", "Clear all",
+                       class = "btn-sm btn-outline-secondary ms-1"),
           actionButton("export_reset", "Reset to default",
                        class = "btn-sm btn-outline-secondary ms-1")),
       div(class = "export-cols",
@@ -2890,6 +2934,9 @@ server <- function(input, output, session) {
     d <- export_dataset(export_target()); req(d)
     updateCheckboxGroupInput(session, "export_cols", selected = names(d))
   })
+  observeEvent(input$export_none, {
+    updateCheckboxGroupInput(session, "export_cols", selected = character(0))
+  })
   observeEvent(input$export_reset, {
     d <- export_dataset(export_target()); req(d)
     updateCheckboxGroupInput(session, "export_cols",
@@ -2911,6 +2958,13 @@ server <- function(input, output, session) {
       if ("family_id" %in% names(out)) {
         out$family_id <- fmt_sample(out$family_id)
         names(out)[names(out) == "family_id"] <- "Sample"
+      }
+      # HGVSp_short is the protein change without the transcript prefix (as in
+      # the gene report). Give it the clean "HGVSp" header, unless the raw
+      # prefixed HGVSp is also included (then keep the names distinct).
+      if ("HGVSp_short" %in% names(out)) {
+        new_name <- if ("HGVSp" %in% names(out)) "HGVSp (no prefix)" else "HGVSp"
+        names(out)[names(out) == "HGVSp_short"] <- new_name
       }
       out[] <- lapply(out, function(x) if (is.factor(x)) as.character(x) else x)
       write_variants_xlsx(out, file, sheet =
