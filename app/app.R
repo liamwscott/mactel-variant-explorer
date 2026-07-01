@@ -1292,6 +1292,24 @@ server <- function(input, output, session) {
     genes   = "Top genes by samples"
   )
 
+  # Colour-palette options for the figure export. Labels are shown to the user;
+  # values are passed to apply_palette() ("Default"/"Colour-blind" are handled
+  # specially, everything else is a grDevices::hcl.colors palette name).
+  OVERVIEW_PALETTES <- c(
+    "Default (semantic)"        = "Default",
+    "Viridis"                   = "Viridis",
+    "Cividis (colour-blind)"    = "Cividis",
+    "Plasma"                    = "Plasma",
+    "Inferno"                   = "Inferno",
+    "Mako"                      = "Mako",
+    "Okabe-Ito (colour-blind)"  = "Colour-blind",
+    "Set 2 (soft)"              = "Set 2",
+    "Dark 2 (bold)"             = "Dark 2",
+    "Dark 3"                    = "Dark 3",
+    "Zissou 1"                  = "Zissou 1",
+    "Temps"                     = "Temps"
+  )
+
   # Ask the user which panels + colour palette before generating the figure.
   observeEvent(input$open_dl_overview, {
     showModal(modalDialog(
@@ -1302,10 +1320,10 @@ server <- function(input, output, session) {
         "ov_panels", "Panels to include:",
         choices  = stats::setNames(names(OVERVIEW_PANELS), unname(OVERVIEW_PANELS)),
         selected = names(OVERVIEW_PANELS)),
-      radioButtons(
+      selectInput(
         "ov_palette", "Colour palette:",
-        choices  = c("Default", "Viridis", "Colour-blind"),
-        selected = "Default", inline = TRUE),
+        choices  = OVERVIEW_PALETTES,
+        selected = "Default"),
       footer = tagList(
         modalButton("Cancel"),
         downloadButton("dl_overview", "Download PNG",

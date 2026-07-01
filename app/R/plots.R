@@ -18,19 +18,25 @@ theme_app <- function(...) {
 # crowded category names do not overlap.
 angle_x <- function() ggplot2::element_text(angle = 45, hjust = 1)
 
+# Okabe-Ito qualitative colour-blind-safe palette (8 hues).
+OKABE_ITO <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442",
+               "#0072B2", "#D55E00", "#CC79A7", "#000000")
+
 # Remap a named default palette to an alternative colour scheme while keeping
 # the same category names/levels. "Default" returns the semantic palette
-# unchanged; alternatives use base-R viridis and an Okabe-Ito colour-blind-safe
-# set (no extra package dependencies).
+# unchanged; "Colour-blind" uses the Okabe-Ito set; any other value is treated
+# as a base-R grDevices::hcl.colors palette name (e.g. "Viridis", "Cividis",
+# "Set 2"). Unknown names fall back to the semantic palette. No extra package
+# dependencies.
 apply_palette <- function(default_named, palette = "Default") {
   if (is.null(palette) || palette == "Default") return(default_named)
   n <- length(default_named)
-  cols <- switch(palette,
-    "Viridis"      = grDevices::hcl.colors(n, "Viridis"),
-    "Colour-blind" = rep(c("#E69F00", "#56B4E9", "#009E73", "#F0E442",
-                           "#0072B2", "#D55E00", "#CC79A7", "#000000"),
-                         length.out = n),
-    default_named)
+  cols <- if (palette == "Colour-blind") {
+    rep(OKABE_ITO, length.out = n)
+  } else {
+    tryCatch(grDevices::hcl.colors(n, palette),
+             error = function(e) unname(default_named))
+  }
   stats::setNames(unname(cols), names(default_named))
 }
 
