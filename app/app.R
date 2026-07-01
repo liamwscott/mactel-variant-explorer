@@ -1347,17 +1347,26 @@ server <- function(input, output, session) {
 
       # "genes" is a tall horizontal bar chart, so give it a full-width row of
       # its own; the remaining panels flow two-per-row above it.
-      has_genes <- "genes" %in% sel
-      compact   <- panels[sel != "genes"]
-      pieces <- list()
-      if (length(compact) > 0)
-        pieces <- c(pieces, list(patchwork::wrap_plots(compact, ncol = 2)))
-      if (has_genes)
-        pieces <- c(pieces, list(panels[[which(sel == "genes")]]))
+      has_genes  <- "genes" %in% sel
+      compact    <- panels[sel != "genes"]
+      comp_rows  <- if (length(compact) > 0) ceiling(length(compact) / 2) else 0
+      # Physical height (inches) for each block, so the compact grid keeps a
+      # constant per-row height instead of being squashed into one slot.
+      COMPACT_ROW_H <- 3.3
+      GENES_H       <- 5.5
+      compact_h  <- comp_rows * COMPACT_ROW_H
+      genes_h    <- if (has_genes) GENES_H else 0
 
-      heights <- if (length(compact) > 0 && has_genes) {
-        c(ceiling(length(compact) / 2), 1.7)
-      } else NULL
+      pieces  <- list()
+      heights <- numeric(0)
+      if (length(compact) > 0) {
+        pieces  <- c(pieces, list(patchwork::wrap_plots(compact, ncol = 2)))
+        heights <- c(heights, compact_h)
+      }
+      if (has_genes) {
+        pieces  <- c(pieces, list(panels[[which(sel == "genes")]]))
+        heights <- c(heights, genes_h)
+      }
 
       fig <- patchwork::wrap_plots(pieces, ncol = 1, heights = heights) +
         patchwork::plot_annotation(
@@ -1369,11 +1378,13 @@ server <- function(input, output, session) {
             plot.subtitle = ggplot2::element_text(size = 11, colour = "grey30"),
             plot.caption  = ggplot2::element_text(size = 9, colour = "grey50")))
 
-      n_rows <- length(pieces)
+      # Total canvas height matches the sum of block heights (+ a little for the
+      # title/subtitle), so nothing is stretched or crushed.
+      fig_h <- max(5, compact_h + genes_h + 1)
       # device = "png" is required: downloadHandler hands us an extension-less
       # temp path, so ggsave cannot infer the format from the filename.
       ggplot2::ggsave(file, fig, device = "png", width = 13,
-                      height = max(5, 4.2 * n_rows), dpi = 200, bg = "white")
+                      height = fig_h, dpi = 200, bg = "white")
       removeModal()
     }
   )

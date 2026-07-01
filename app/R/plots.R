@@ -44,7 +44,7 @@ plot_impact <- function(df, palette = "Default") {
                        fontface = "bold", size = 3.5) +
     ggplot2::scale_fill_manual(values = apply_palette(COL_IMPACT, palette),
                                drop = FALSE) +
-    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.18))) +
     ggplot2::labs(title = "VEP impact", x = NULL, y = "Variants") +
     theme_app(legend.position = "none", axis.text.x = angle_x())
 }
@@ -59,7 +59,7 @@ plot_type <- function(df, palette = "Default") {
                        fontface = "bold", size = 3.5) +
     ggplot2::scale_fill_manual(values = apply_palette(COL_TYPE, palette),
                                drop = FALSE) +
-    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.18))) +
     ggplot2::labs(title = "Variant type", x = NULL, y = "Variants") +
     theme_app(legend.position = "none", axis.text.x = angle_x())
 }
@@ -74,7 +74,7 @@ plot_clnsig <- function(df, palette = "Default") {
                        fontface = "bold", size = 3.2) +
     ggplot2::scale_fill_manual(values = apply_palette(COL_CLNSIG, palette),
                                drop = FALSE) +
-    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.18))) +
     ggplot2::scale_x_discrete(labels = function(x)
       stringr::str_wrap(gsub("_", " ", x), 12)) +
     ggplot2::labs(title = "ClinVar classification", x = NULL, y = "Variants") +
