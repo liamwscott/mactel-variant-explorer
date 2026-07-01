@@ -1324,12 +1324,14 @@ server <- function(input, output, session) {
   link_sample <- function(fid) sprintf(
     "<a href='#' onclick=\"Shiny.setInputValue('cell_sample','%s',{priority:'event'});return false;\">%s</a>",
     .jsesc(fid), fmt_sample(fid))
-  link_variant <- function(chrom, pos, ref, alt) {
+  # input_id lets the in-modal variant table fire a different input
+  # (modal_pick_variant) so it toggles state in place instead of re-opening.
+  link_variant <- function(chrom, pos, ref, alt, input_id = "cell_variant") {
     label <- sprintf("%s:%s %s>%s", chrom, pos, ref, alt)
     key   <- sprintf("%s||%s||%s||%s", chrom, pos, ref, alt)
     sprintf(
-      "<a href='#' onclick=\"Shiny.setInputValue('cell_variant','%s',{priority:'event'});return false;\">%s</a>",
-      .jsesc(key), label)
+      "<a href='#' onclick=\"Shiny.setInputValue('%s','%s',{priority:'event'});return false;\">%s</a>",
+      input_id, .jsesc(key), label)
   }
   # Diagnosis colour for a sample (family_id key): red MacTel, blue HSAN1,
   # purple both, grey neither. Shared by the variant-modal carrier chips and the
@@ -1986,10 +1988,12 @@ server <- function(input, output, session) {
     )
   })
 
-  # External-resource buttons (AlphaFold structure + ClinVar record). Both fire
-  # a server-side handler so they open in the real default browser rather than
-  # RStudio's blank built-in Viewer. Re-renders with the active variant so the
-  # ClinVar link tracks the selected variant.
+  # Action / external-resource buttons shown with the active variant:
+  #  * "View all variants" clears the selected variant and returns to the
+  #    whole-gene protein lollipop landing (with its variant table).
+  #  * "ClinVar record" opens the variation page in the real default browser
+  #    (server-side handler, so it doesn't get trapped in RStudio's Viewer).
+  # Re-renders with the active variant so the ClinVar link tracks the selection.
   output$variant_links <- renderUI({
     row <- modal_variant(); req(row)
     open_btn <- function(url, label, icon) tags$button(
@@ -1998,11 +2002,11 @@ server <- function(input, output, session) {
       onclick = sprintf(
         "Shiny.setInputValue('open_url','%s',{priority:'event'});", .jsesc(url)))
 
-    # AlphaFold: keyed by the gene's UniProt accession from the domain table.
-    uni <- af_uniprot_for_gene(row$SYMBOL, PROTEIN_DOMAINS)
-    af_btn <- if (!is.na(uni)) open_btn(
-      sprintf("https://alphafold.ebi.ac.uk/entry/%s", uni),
-      sprintf("AlphaFold structure (%s)", uni), "box") else NULL
+    # Return to the whole-gene lollipop landing (deselect the current variant).
+    view_all_btn <- tags$button(
+      tagList(bsicons::bs_icon("graph-up"), " View all variants"),
+      type = "button", class = "btn btn-sm btn-outline-secondary mb-2 me-2",
+      onclick = "Shiny.setInputValue('view_all_variants',Math.random(),{priority:'event'});")
 
     # ClinVar: deep-link to the variation record when a CLNVID is present.
     cv_id <- if ("CLNVID" %in% names(row))
@@ -2013,8 +2017,7 @@ server <- function(input, output, session) {
       sprintf("https://www.ncbi.nlm.nih.gov/clinvar/variation/%s/", cv_id),
       sprintf("ClinVar record (%s)", cv_id), "clipboard2-pulse") else NULL
 
-    if (is.null(af_btn) && is.null(cv_btn)) return(NULL)
-    div(class = "mb-1", af_btn, cv_btn)
+    div(class = "mb-1", view_all_btn, cv_btn)
   })
 
   # Samples carrying the active variant, as clickable chips that jump to the
@@ -2119,61 +2122,24 @@ server <- function(input, output, session) {
       r3dmol::m_zoom(factor = 1.4)
   })
 
-  show_variant_modal <- function(row) {
-    if (is.null(row) || nrow(row) == 0) return(invisible())
-    modal_variant(row)
-    modal_gene(row$SYMBOL)
-
-    tier <- if (!is.null(row$Tier)) row$Tier else NA
-
-    # gene description (from the active gene-info table), shown above the plot
-    gi <- gene_info_rv()
-    ginfo <- if (!is.null(gi)) gi[gi$SYMBOL == row$SYMBOL, ] else NULL
-    gene_desc <- if (!is.null(ginfo) && nrow(ginfo) > 0 &&
-                     !is.na(ginfo$Gene_Description[1]) &&
-                     ginfo$Gene_Description[1] != "") {
-      tagList(
-        tags$p(tags$strong("Gene description"),
-               style = "margin-bottom:2px;"),
-        tags$p(ginfo$Gene_Description[1], class = "text-muted",
-               style = "font-size:0.9rem;")
-      )
-    } else NULL
-
-    showModal(modalDialog(
-      title = tagList(
-        tags$span(row$SYMBOL, style = "font-weight:700;font-size:1.2rem;"),
-        if (!is.null(tier) && !is.na(tier))
-          tags$span(tier, class = "badge bg-secondary",
-                    style = "margin-left:8px;vertical-align:middle;")
-      ),
-      uiOutput("variant_detail"),
-      gene_desc,
-      uiOutput("variant_links"),
-      uiOutput("variant_samples"),
-      plotly::plotlyOutput("lollipop", height = 430),
-      structure_section(),
-      easyClose = TRUE, size = "xl",
-      footer = tagList(
-        downloadButton("report_dl",
-                       tagList(bsicons::bs_icon("file-earmark-arrow-down"),
-                               " Download report"),
-                       class = "btn btn-primary", icon = NULL),
-        modalButton("Close"))
-    ))
-  }
-
-  # Gene-level landing for the protein lollipop: shows the plot for every variant
-  # in the gene with no variant pre-selected (the detail header stays blank until
-  # a point is clicked). Same modal/visuals as the variant view, minus the ring.
-  show_gene_lollipop_modal <- function(symbol) {
-    if (is.null(symbol) || is.na(symbol) || symbol == "") return(invisible())
-    modal_variant(NULL)
-    modal_gene(symbol)
+  # One protein modal with exactly two states, driven by modal_variant():
+  #   * gene state    (row = NULL): clickable variant table above the lollipop,
+  #                                 no ring, straight gene-report download.
+  #   * variant state (row set):    variant detail + carriers + "View all
+  #                                 variants" button, ringed lollipop, report
+  #                                 chooser.
+  # Every variant click (table row OR lollipop point) just sets modal_variant(),
+  # so the page toggles between these two states in place — there is no third
+  # hybrid state, and clicking via the plot or the table does the same thing.
+  show_protein_modal <- function(gene, row = NULL) {
+    if (is.null(gene) || is.na(gene) || gene == "") return(invisible())
+    modal_gene(gene)
+    modal_variant(if (!is.null(row) && nrow(row) > 0) row else NULL)
 
     gi <- gene_info_rv()
-    info <- if (!is.null(gi)) gi[gi$SYMBOL == symbol, ] else NULL
-    tier <- if (!is.null(info) && nrow(info) > 0) info$Tier[1] else NA
+    info <- if (!is.null(gi)) gi[gi$SYMBOL == gene, ] else NULL
+    tier <- if (!is.null(info) && nrow(info) > 0) info$Tier[1]
+            else if (!is.null(row) && !is.null(row$Tier)) row$Tier else NA
     gene_desc <- if (!is.null(info) && nrow(info) > 0 &&
                      !is.na(info$Gene_Description[1]) &&
                      info$Gene_Description[1] != "") {
@@ -2186,7 +2152,7 @@ server <- function(input, output, session) {
 
     showModal(modalDialog(
       title = tagList(
-        tags$span(symbol, style = "font-weight:700;font-size:1.2rem;"),
+        tags$span(gene, style = "font-weight:700;font-size:1.2rem;"),
         if (!is.null(tier) && !is.na(tier))
           tags$span(tier, class = "badge bg-secondary",
                     style = "margin-left:8px;vertical-align:middle;")
@@ -2195,17 +2161,84 @@ server <- function(input, output, session) {
       gene_desc,
       uiOutput("variant_links"),
       uiOutput("variant_samples"),
+      # Gene state only: the clickable variant table above the lollipop.
+      conditionalPanel(
+        condition = "output.modal_gene_state === true",
+        tags$p(tags$strong("Variants in this gene"),
+               tags$span(class = "text-muted small",
+                         " — click a Variant to see it on the protein, or a Sample to open its explorer."),
+               style = "margin-bottom:4px;"),
+        DT::DTOutput("gene_variant_table")
+      ),
       plotly::plotlyOutput("lollipop", height = 430),
       structure_section(),
       easyClose = TRUE, size = "xl",
-      footer = tagList(
-        downloadButton("report_dl",
-                       tagList(bsicons::bs_icon("file-earmark-arrow-down"),
-                               " Download report"),
-                       class = "btn btn-primary", icon = NULL),
-        modalButton("Close"))
+      footer = uiOutput("report_footer")
     ))
   }
+
+  # JS-visible flag for the conditionalPanel: TRUE in gene state (no variant).
+  output$modal_gene_state <- reactive({ is.null(modal_variant()) })
+  outputOptions(output, "modal_gene_state", suspendWhenHidden = FALSE)
+
+  # Footer swaps with the state: gene state downloads the gene report directly;
+  # variant state asks which report (variant vs gene) via report_choose.
+  output$report_footer <- renderUI({
+    dl_icon <- bsicons::bs_icon("file-earmark-arrow-down")
+    if (is.null(modal_variant())) {
+      tagList(
+        downloadButton("report_dl", tagList(dl_icon, " Download report"),
+                       class = "btn btn-primary", icon = NULL),
+        modalButton("Close"))
+    } else {
+      tagList(
+        actionButton("report_choose", tagList(dl_icon, " Download report"),
+                     class = "btn btn-primary"),
+        modalButton("Close"))
+    }
+  })
+
+  # Clickable variant table shown on the gene-landing modal (above the lollipop).
+  # Six columns matching the gene report; Variant and Sample cells are clickable
+  # (Gene is omitted since the whole modal is already scoped to one gene).
+  output$gene_variant_table <- DT::renderDT({
+    gene <- modal_gene(); req(gene)
+    gdf <- dplyr::filter(raw(), SYMBOL == gene)
+    validate(need(nrow(gdf) > 0, "No variants for this gene."))
+    tbl <- gdf %>%
+      dplyr::group_by(CHROM, POS, REF, ALT) %>%
+      dplyr::summarise(
+        HGVSp    = dplyr::first(HGVSp_short),
+        Impact   = as.character(dplyr::first(IMPACT)),
+        CADD     = suppressWarnings(max(CADD, na.rm = TRUE)),
+        ClinVar  = as.character(dplyr::first(CLNSIG_clean)),
+        carriers = list(sort(unique(family_id))),
+        .groups  = "drop") %>%
+      dplyr::arrange(dplyr::desc(CADD))
+    sample_links <- vapply(tbl$carriers,
+      function(fs) paste(link_sample(fs), collapse = " "), character(1))
+    out <- data.frame(
+      Variant = link_variant(tbl$CHROM, tbl$POS, tbl$REF, tbl$ALT,
+                             input_id = "modal_pick_variant"),
+      HGVSp   = tbl$HGVSp,
+      Impact  = tbl$Impact,
+      CADD    = ifelse(is.finite(tbl$CADD), round(tbl$CADD, 1), NA_real_),
+      ClinVar = tbl$ClinVar,
+      Samples = sample_links,
+      check.names = FALSE, stringsAsFactors = FALSE)
+    names(out)[names(out) == "Samples"] <- "Sample(s)"
+    DT::datatable(out, escape = FALSE, rownames = FALSE, selection = "none",
+                  filter = "top",
+                  options = list(pageLength = 10, scrollX = TRUE,
+                                 dom = "ftip")) %>%
+      DT::formatStyle("Impact",
+                      backgroundColor = DT::styleEqual("HIGH", "#FDDEDE")) %>%
+      DT::formatStyle("ClinVar",
+                      backgroundColor = DT::styleEqual(
+                        c("Pathogenic", "Pathogenic/Likely_pathogenic",
+                          "Likely_pathogenic"),
+                        c("#FDDEDE", "#F7D6F7", "#FDE8D8")))
+  })
 
   # ---- one-click report (self-contained HTML) ------------------------------
   # Build a standalone, emailable HTML summary for the gene/variant currently
@@ -2228,7 +2261,9 @@ server <- function(input, output, session) {
     ddf <- if (!is.null(PROTEIN_DOMAINS))
       dplyr::filter(PROTEIN_DOMAINS, SYMBOL == gene) else NULL
     sel_key <- if (has_row) paste(row$CHROM, row$POS, row$REF, row$ALT) else NULL
-    p <- tryCatch(plot_variant_lollipop(gdf, ddf, gene, sel_key),
+    # Gene report (no single variant): label every position on the lollipop.
+    p <- tryCatch(plot_variant_lollipop(gdf, ddf, gene, sel_key,
+                                        label_all = !has_row),
                   error = function(e) NULL)
     plot_html <- "<p class='muted'>No protein-coding positions to plot for this gene.</p>"
     if (!is.null(p)) {
@@ -2378,23 +2413,67 @@ server <- function(input, output, session) {
     )
   }
 
-  output$report_dl <- downloadHandler(
-    filename = function() {
-      g <- modal_gene(); r <- modal_variant()
-      g <- if (is.null(g)) "gene" else g
-      if (!is.null(r) && nrow(r) > 0)
-        sprintf("MacTel_report_%s_%s-%s_%s.html", g, r$CHROM, r$POS, Sys.Date())
-      else
-        sprintf("MacTel_report_%s_%s.html", g, Sys.Date())
-    },
-    content = function(file) {
-      g <- modal_gene()
-      if (is.null(g)) {
-        writeLines("<html><body><p>No gene selected.</p></body></html>", file)
-        return(invisible())
-      }
-      writeLines(make_report_html(g, modal_variant()), file)
+  # Gene-report filename (whole gene, no single variant).
+  gene_report_name <- function() {
+    g <- modal_gene(); g <- if (is.null(g)) "gene" else g
+    sprintf("MacTel_report_%s_%s.html", g, Sys.Date())
+  }
+  # Variant-report filename (one selected variant).
+  variant_report_name <- function() {
+    g <- modal_gene(); r <- modal_variant()
+    g <- if (is.null(g)) "gene" else g
+    if (!is.null(r) && nrow(r) > 0)
+      sprintf("MacTel_report_%s_%s-%s_%s.html", g, r$CHROM, r$POS, Sys.Date())
+    else gene_report_name()
+  }
+  write_report <- function(file, row) {
+    g <- modal_gene()
+    if (is.null(g)) {
+      writeLines("<html><body><p>No gene selected.</p></body></html>", file)
+      return(invisible())
     }
+    writeLines(make_report_html(g, row), file)
+  }
+
+  # Gene-landing modal footer: straight gene-report download (no variant chosen).
+  output$report_dl <- downloadHandler(
+    filename = gene_report_name,
+    content  = function(file) write_report(file, modal_variant())
+  )
+
+  # Variant modal "Download report" -> ask whether they want the single-variant
+  # report or the whole-gene report (with every position labelled on the plot).
+  observeEvent(input$report_choose, {
+    req(modal_variant())
+    showModal(modalDialog(
+      title = tagList(bsicons::bs_icon("file-earmark-arrow-down"),
+                      " Download report"),
+      tags$p("Which report would you like?"),
+      tags$ul(
+        tags$li(tags$strong("Variant report"),
+                " — details, carriers and protein lollipop for the selected variant."),
+        tags$li(tags$strong("Gene report"),
+                " — every variant and its samples for this gene, plus the full ",
+                "protein lollipop with each position labelled.")),
+      easyClose = TRUE, size = "m",
+      footer = tagList(
+        downloadButton("report_dl_variant",
+                       tagList(bsicons::bs_icon("crosshair"), " Variant report"),
+                       class = "btn btn-primary"),
+        downloadButton("report_dl_gene",
+                       tagList(bsicons::bs_icon("diagram-3"), " Gene report"),
+                       class = "btn btn-outline-primary"),
+        modalButton("Cancel"))
+    ))
+  })
+
+  output$report_dl_variant <- downloadHandler(
+    filename = variant_report_name,
+    content  = function(file) { write_report(file, modal_variant()); removeModal() }
+  )
+  output$report_dl_gene <- downloadHandler(
+    filename = gene_report_name,
+    content  = function(file) { write_report(file, NULL); removeModal() }
   )
 
   output$lollipop <- plotly::renderPlotly({
@@ -2457,20 +2536,40 @@ server <- function(input, output, session) {
     bslib::nav_select("main_tabs", "Variant table")
   })
 
-  # "View variants on protein" in the gene modal -> open the protein lollipop for
-  # the whole gene with no variant pre-selected (detail header blank until click).
+  # "View variants on protein" in the gene modal -> open the protein modal in
+  # GENE state (variant table above the lollipop, no variant selected).
   observeEvent(input$gene_view_lollipop, {
-    show_gene_lollipop_modal(input$gene_view_lollipop)
+    show_protein_modal(input$gene_view_lollipop, NULL)
   })
 
-  # Clicking a Variant cell -> variant detail + protein lollipop modal.
+  # "View all variants" in the variant state -> switch the already-open modal
+  # back to GENE state in place (no re-open, smooth toggle).
+  observeEvent(input$view_all_variants, {
+    req(modal_gene())
+    modal_variant(NULL)
+  })
+
+  # Clicking a Variant cell in the whole-gene table (inside the modal) -> switch
+  # the already-open modal to VARIANT state in place (no re-open, smooth toggle).
+  observeEvent(input$modal_pick_variant, {
+    g <- modal_gene(); req(g)
+    parts <- strsplit(input$modal_pick_variant, "\\|\\|")[[1]]
+    if (length(parts) != 4) return()
+    hit <- raw() %>%
+      dplyr::filter(SYMBOL == g, CHROM == parts[1], as.character(POS) == parts[2],
+                    REF == parts[3], ALT == parts[4])
+    if (nrow(hit) > 0) modal_variant(hit[1, ])
+  })
+
+  # Clicking a Variant cell anywhere OUTSIDE the modal (main variant table,
+  # priority table, etc.) -> open the protein modal in VARIANT state.
   observeEvent(input$cell_variant, {
     parts <- strsplit(input$cell_variant, "\\|\\|")[[1]]
     if (length(parts) != 4) return()
     hit <- raw() %>%
       dplyr::filter(CHROM == parts[1], as.character(POS) == parts[2],
                     REF == parts[3], ALT == parts[4])
-    if (nrow(hit) > 0) show_variant_modal(hit[1, ])
+    if (nrow(hit) > 0) show_protein_modal(hit$SYMBOL[1], hit[1, ])
   })
 
   # Clicking a Sample cell (table or variant-modal chip) -> close any modal and

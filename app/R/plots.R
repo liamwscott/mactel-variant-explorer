@@ -150,9 +150,13 @@ aa_position <- function(hgvsp) {
 #'              Start, End) from load_protein_domains(); may be empty/NULL
 #'   gene     : gene symbol (for the title)
 #'   sel_key  : "CHROM POS REF ALT" of the clicked variant to highlight (or NULL)
+#'   label_all: if TRUE, label every lollipop point with its HGVSp (ggrepel).
+#'              Used for the static gene report; the interactive view leaves it
+#'              FALSE so the plot stays uncluttered.
 #' Lollipop height = CADD, colour = ClinVar class, size = #samples carrying it.
 #' Pfam domains are drawn as boxes on the protein backbone beneath the stems.
-plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL) {
+plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
+                                  label_all = FALSE) {
   v <- gene_df %>%
     dplyr::mutate(
       aa  = aa_position(HGVSp_short),
@@ -237,6 +241,22 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL) {
                           label = "Selected variant is not protein coding",
                           fill = "#fff3cd", colour = "#664d03",
                           fontface = "bold", size = 3.5)
+    }
+  }
+
+  # Label every point (gene report): HGVSp with leader lines, repelled so the
+  # labels don't overlap even on gene-dense proteins.
+  if (label_all && nrow(vv) > 0) {
+    lab <- vv %>% dplyr::filter(!is.na(HGVSp_short), HGVSp_short != "")
+    if (nrow(lab) > 0) {
+      p <- p +
+        ggrepel::geom_text_repel(
+          data = lab,
+          ggplot2::aes(x = aa, y = CADD, label = HGVSp_short),
+          size = 2.6, fontface = "plain",
+          min.segment.length = 0, max.overlaps = Inf,
+          segment.size = 0.2, segment.colour = "grey60",
+          box.padding = 0.3, point.padding = 0.1, seed = 1)
     }
   }
 
