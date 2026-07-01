@@ -72,18 +72,37 @@ plot_type <- function(df, palette = "Default") {
 
 # --- ClinVar -----------------------------------------------------------------
 plot_clnsig <- function(df, palette = "Default") {
-  df %>%
-    dplyr::count(CLNSIG_clean, .drop = FALSE) %>%
-    ggplot2::ggplot(ggplot2::aes(CLNSIG_clean, n, fill = CLNSIG_clean)) +
+  cnt <- dplyr::count(df, CLNSIG_clean, .drop = FALSE)
+
+  # Dynamic y-axis: when one category dwarfs the rest (e.g. Tier 2 genes where
+  # almost everything is "Not in ClinVar"), a base-10 log scale keeps the small
+  # but informative pathogenic categories readable. A pseudo-log transform is
+  # used so counts of 0 and 1 still render sensibly (plain log10 is undefined at
+  # 0 and flattens 1 to the baseline). Otherwise use a linear axis.
+  nz      <- sort(cnt$n[cnt$n > 0], decreasing = TRUE)
+  use_log <- length(nz) >= 2 && nz[1] >= 5 * nz[2]
+  expand  <- ggplot2::expansion(mult = c(0, 0.18))
+  y_scale <- if (use_log) {
+    ggplot2::scale_y_continuous(
+      transform = scales::pseudo_log_trans(base = 10),
+      breaks    = c(0, 1, 3, 10, 30, 100, 300, 1000),
+      expand    = expand)
+  } else {
+    ggplot2::scale_y_continuous(expand = expand)
+  }
+
+  ggplot2::ggplot(cnt, ggplot2::aes(CLNSIG_clean, n, fill = CLNSIG_clean)) +
     ggplot2::geom_col(colour = "white", width = 0.7) +
     ggplot2::geom_text(ggplot2::aes(label = n), vjust = -0.4,
                        fontface = "bold", size = 3.2) +
     ggplot2::scale_fill_manual(values = apply_palette(COL_CLNSIG, palette),
                                drop = FALSE) +
-    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.18))) +
+    y_scale +
     ggplot2::scale_x_discrete(labels = function(x)
       stringr::str_wrap(gsub("_", " ", x), 12)) +
-    ggplot2::labs(title = "ClinVar classification", x = NULL, y = "Variants") +
+    ggplot2::labs(title = "ClinVar classification",
+                  subtitle = if (use_log) "log10 y-axis" else NULL,
+                  x = NULL, y = "Variants") +
     theme_app(legend.position = "none",
               axis.text.x = ggplot2::element_text(angle = 45, hjust = 1,
                                                   size = 8))
