@@ -781,6 +781,7 @@ ui <- function(request) page_sidebar(
                        icon = bsicons::bs_icon("file-earmark-spreadsheet"),
                        class = "btn-sm btn-success float-end me-2")
         ),
+        uiOutput("legend_variants"),
         DT::DTOutput("variant_table")
       )
     ),
@@ -810,6 +811,7 @@ ui <- function(request) page_sidebar(
                        icon = bsicons::bs_icon("file-earmark-spreadsheet"),
                        class = "btn-sm btn-success float-end me-2")
         ),
+        uiOutput("legend_priority"),
         layout_columns(
           col_widths = c(7, 5),
           DT::DTOutput("priority_table"),
@@ -1090,11 +1092,13 @@ server <- function(input, output, session) {
     d <- compare_diff()
     validate(need(nrow(d) > 0,
                   "No differences — both files contain the same variants."))
-    DT::datatable(display_compare(d),
+    dt <- display_compare(d)
+    DT::datatable(dt,
                   filter = "top", rownames = FALSE,
                   selection = "none", escape = FALSE,
                   extensions = "Buttons",
                   options = list(pageLength = 25, scrollX = TRUE,
+                                 order = order_desc_by(dt, "CADD"),
                                  dom = "Bfrtip", buttons = c("copy", "csv"),
                                  headerCallback = header_tips_cb())) %>%
       DT::formatStyle("Only in", fontWeight = "bold") %>%
@@ -1334,10 +1338,14 @@ server <- function(input, output, session) {
       .jsesc(sym), sym))
   }
   # Payload stays family_id (so jump-to-sample keeps working); the visible text
-  # uses the selected ID format.
+  # uses the selected ID format. Rendered as a diagnosis-coloured pill badge so
+  # a sample's MacTel/HSAN1/both/control status is readable straight from the
+  # table without having to click through. Vectorised over fid.
+  # onclick (carrying family_id) is placed before the diagnosis-dependent style
+  # so the DT sort key prefix stays constant and the column still sorts by id.
   link_sample <- function(fid) sprintf(
-    "<a href='#' onclick=\"Shiny.setInputValue('cell_sample','%s',{priority:'event'});return false;\">%s</a>",
-    .jsesc(fid), fmt_sample(fid))
+    "<a href='#' onclick=\"Shiny.setInputValue('cell_sample','%s',{priority:'event'});return false;\" class='badge rounded-pill me-1' style='background-color:%s;color:#fff;text-decoration:none;cursor:pointer;'>%s</a>",
+    .jsesc(fid), diag_colour(fid), fmt_sample(fid))
   # input_id lets the in-modal variant table fire a different input
   # (modal_pick_variant) so it toggles state in place instead of re-opening.
   link_variant <- function(chrom, pos, ref, alt, input_id = "cell_variant") {
@@ -1347,22 +1355,51 @@ server <- function(input, output, session) {
       "<a href='#' onclick=\"Shiny.setInputValue('%s','%s',{priority:'event'});return false;\">%s</a>",
       input_id, .jsesc(key), label)
   }
-  # Diagnosis colour for a sample (family_id key): red MacTel, blue HSAN1,
-  # purple both, grey neither. Shared by the variant-modal carrier chips and the
-  # Family explorer member badges.
+  # Diagnosis colour for one or more samples (family_id keys): red MacTel, blue
+  # HSAN1, purple both, grey control/unknown. Vectorised (via DIAG_GROUP_LOOKUP +
+  # COL_DIAG) so it can colour a whole table column at once. Shared by the sample
+  # badges, the variant-modal carrier chips, and the Family explorer.
   diag_colour <- function(fid) {
-    if (is.null(SAMPLE_INFO)) return("#546E7A")
-    r <- SAMPLE_INFO[SAMPLE_INFO$family_id == fid, , drop = FALSE]
-    if (nrow(r) == 0) return("#546E7A")
-    m <- isTRUE(r$is_mactel[1]); h <- isTRUE(r$is_hsan1[1])
-    if (m && h) "#6A1B9A" else if (m) "#C62828" else if (h) "#1565C0"
-    else "#546E7A"
+    fid <- as.character(fid)
+    if (is.null(DIAG_GROUP_LOOKUP)) return(rep("#546E7A", length(fid)))
+    col <- unname(COL_DIAG[unname(DIAG_GROUP_LOOKUP[fid])])
+    col[is.na(col)] <- "#546E7A"
+    col
   }
-  # A single clickable, diagnosis-coloured member badge (same look as the
-  # carrier chips beside the protein lollipop). Click -> Sample explorer.
-  link_member <- function(fid) sprintf(
-    "<a href='#' class='badge rounded-pill me-1' style='background-color:%s;color:#fff;text-decoration:none;cursor:pointer;' onclick=\"Shiny.setInputValue('cell_sample','%s',{priority:'event'});return false;\">%s</a>",
-    diag_colour(fid), .jsesc(fid), fmt_sample(fid))
+  # Diagnosis group label(s) for one or more samples (for legends/tooltips).
+  diag_group <- function(fid) {
+    fid <- as.character(fid)
+    if (is.null(DIAG_GROUP_LOOKUP)) return(rep(NA_character_, length(fid)))
+    unname(DIAG_GROUP_LOOKUP[fid])
+  }
+  # link_member is kept as an alias so existing callers still work; sample links
+  # everywhere now render as the same clickable, diagnosis-coloured badge.
+  link_member <- function(fid) link_sample(fid)
+
+  # Small inline legend of the diagnosis colours actually present among `fids`,
+  # shown above sample-bearing tables so the badge colours are self-explanatory.
+  # Returns NULL when there is no sample info or no group to show.
+  diag_legend <- function(fids) {
+    if (is.null(DIAG_GROUP_LOOKUP)) return(NULL)
+    present <- intersect(names(COL_DIAG),
+                         unique(diag_group(fids)[!is.na(diag_group(fids))]))
+    if (length(present) == 0) return(NULL)
+    swatch <- function(lab) tags$span(
+      class = "badge rounded-pill me-2",
+      style = sprintf("background-color:%s;color:#fff;font-weight:normal;",
+                      COL_DIAG[[lab]]), lab)
+    tags$div(class = "mb-2 small",
+             tags$span("Sample diagnosis:", class = "text-muted me-2"),
+             lapply(present, swatch))
+  }
+
+  # DT `order` spec that sorts a table by the first matching column name,
+  # descending, by default. Column index is 0-based (rownames are off in every
+  # table here). Falls back to DT's default ordering when no column matches.
+  order_desc_by <- function(df, cols) {
+    idx <- match(intersect(cols, names(df))[1], names(df))
+    if (is.na(idx)) list() else list(list(idx - 1L, "desc"))
+  }
 
   # ---- display-table builder ------------------------------------------------
   display_cols <- function(df, links = TRUE) {
@@ -1393,12 +1430,16 @@ server <- function(input, output, session) {
       )
   }
 
+  output$legend_variants <- renderUI(diag_legend(filtered()$family_id))
+
   output$variant_table <- DT::renderDT({
-    DT::datatable(display_cols(filtered()),
+    dt <- display_cols(filtered())
+    DT::datatable(dt,
                   filter = "top", rownames = FALSE,
                   selection = "none", escape = FALSE,
                   extensions = "Buttons",
                   options = list(pageLength = 25, scrollX = TRUE,
+                                 order = order_desc_by(dt, "CADD"),
                                  dom = "Bfrtip", buttons = c("copy", "csv"),
                                  headerCallback = header_tips_cb())) %>%
       DT::formatStyle("ClinVar",
@@ -1414,6 +1455,8 @@ server <- function(input, output, session) {
   })
 
   # ---- priority table & plot ------------------------------------------------
+  output$legend_priority <- renderUI(diag_legend(priority()$family_id))
+
   output$priority_table <- DT::renderDT({
     tbl <- priority() %>%
       dplyr::transmute(
@@ -1426,6 +1469,7 @@ server <- function(input, output, session) {
     DT::datatable(tbl, filter = "top", rownames = FALSE,
                   selection = "none", escape = FALSE,
                   options = list(pageLength = 15, scrollX = TRUE,
+                                 order = order_desc_by(tbl, "CADD"),
                                  headerCallback = header_tips_cb())) %>%
       DT::formatStyle("Flags", fontWeight = "bold",
                       background = DT::styleColorBar(c(0, 3), "#9ec5fe")) %>%
@@ -1461,6 +1505,7 @@ server <- function(input, output, session) {
     DT::datatable(g, rownames = FALSE, filter = "top",
                   selection = "none", escape = FALSE,
                   options = list(pageLength = 25, scrollX = TRUE,
+                                 order = order_desc_by(g, "CADD_max"),
                                  headerCallback = header_tips_cb()))
   })
 
@@ -1539,6 +1584,7 @@ server <- function(input, output, session) {
         Inheritance = inheritance)
     DT::datatable(tbl, rownames = FALSE, selection = "none", escape = FALSE,
                   options = list(pageLength = 15, scrollX = TRUE,
+                                 order = order_desc_by(tbl, "CADD"),
                                  headerCallback = header_tips_cb())) %>%
       DT::formatStyle("ClinVar",
                       backgroundColor = DT::styleEqual(
@@ -1785,6 +1831,7 @@ server <- function(input, output, session) {
     DT::datatable(tbl, rownames = FALSE,
                   selection = "none", escape = FALSE,
                   options = list(pageLength = 15, scrollX = TRUE,
+                                 order = order_desc_by(tbl, "CADD"),
                                  headerCallback = header_tips_cb())) %>%
       DT::formatStyle("ClinVar",
                       backgroundColor = DT::styleEqual(
@@ -2180,6 +2227,7 @@ server <- function(input, output, session) {
         condition = "output.modal_gene_state === true",
         tags$p(tags$strong("Variants in this gene"),
                style = "margin-bottom:4px;"),
+        uiOutput("legend_gene_variants"),
         DT::DTOutput("gene_variant_table")
       ),
       plotly::plotlyOutput("lollipop", height = 430),
@@ -2208,6 +2256,11 @@ server <- function(input, output, session) {
                      class = "btn btn-primary"),
         modalButton("Close"))
     }
+  })
+
+  output$legend_gene_variants <- renderUI({
+    gene <- modal_gene(); req(gene)
+    diag_legend(dplyr::filter(raw(), SYMBOL == gene)$family_id)
   })
 
   # Clickable variant table shown on the gene-landing modal (above the lollipop).
@@ -2242,6 +2295,7 @@ server <- function(input, output, session) {
     DT::datatable(out, escape = FALSE, rownames = FALSE, selection = "none",
                   filter = "top",
                   options = list(pageLength = 10, scrollX = TRUE,
+                                 order = order_desc_by(out, "CADD"),
                                  dom = "ftip")) %>%
       DT::formatStyle("Impact",
                       backgroundColor = DT::styleEqual("HIGH", "#FDDEDE")) %>%
