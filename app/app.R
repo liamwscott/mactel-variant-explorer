@@ -2165,8 +2165,6 @@ server <- function(input, output, session) {
       conditionalPanel(
         condition = "output.modal_gene_state === true",
         tags$p(tags$strong("Variants in this gene"),
-               tags$span(class = "text-muted small",
-                         " — click a Variant to see it on the protein, or a Sample to open its explorer."),
                style = "margin-bottom:4px;"),
         DT::DTOutput("gene_variant_table")
       ),
