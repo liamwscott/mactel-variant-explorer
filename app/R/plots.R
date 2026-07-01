@@ -98,7 +98,7 @@ plot_cadd <- function(df, threshold = 20, palette = "Default") {
     ggplot2::geom_vline(xintercept = threshold, linetype = "dashed",
                         colour = "red", linewidth = 0.8) +
     ggplot2::scale_fill_manual(values = apply_palette(COL_IMPACT, palette),
-                               drop = FALSE, name = "Impact") +
+                               drop = TRUE, name = "Impact") +
     ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.08))) +
     ggplot2::labs(title = "CADD distribution", x = "CADD", y = "Count") +
     theme_app()
@@ -210,7 +210,7 @@ plot_score_scatter <- function(df) {
   ggplot2::ggplot(d, ggplot2::aes(CADD, REVEL, colour = IMPACT,
                                   shape = is_pathLP, text = tooltip)) +
     ggplot2::geom_point(alpha = 0.75, size = 2.4) +
-    ggplot2::scale_colour_manual(values = COL_IMPACT, drop = FALSE,
+    ggplot2::scale_colour_manual(values = COL_IMPACT, drop = TRUE,
                                  name = "Impact") +
     ggplot2::scale_shape_manual(values = c(`FALSE` = 16, `TRUE` = 17),
                                 labels = c("Other", "ClinVar P/LP"),
@@ -294,7 +294,7 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
                         ggplot2::aes(x = aa, y = CADD,
                                      colour = CLNSIG_clean, size = n_carriers,
                                      text = tooltip, key = key)) +
-    ggplot2::scale_colour_manual(values = COL_CLNSIG, drop = FALSE,
+    ggplot2::scale_colour_manual(values = COL_CLNSIG, drop = TRUE,
                                  name = "ClinVar") +
     ggplot2::scale_size_continuous(range = c(2.5, 7), name = "Samples",
                                    breaks = scales::breaks_pretty(4)) +
