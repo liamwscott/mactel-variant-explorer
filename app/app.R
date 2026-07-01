@@ -511,6 +511,12 @@ ui <- function(request) page_sidebar(
         checkboxGroupInput("sample_group", "Sample group",
                            choices = c("MacTel", "HSAN1", "Controls"),
                            selected = "MacTel", inline = TRUE),
+        selectizeInput("exclude_samples", "Exclude samples",
+                       choices = NULL, multiple = TRUE,
+                       options = list(placeholder = "None excluded")),
+        helpText(class = "small text-muted mt-n2",
+                 "Drop specific samples from every view (e.g. suspected ",
+                 "bad-data samples), regardless of the group selected above."),
         checkboxGroupInput("tier", "Gene Tier",
                            choices = NULL, inline = TRUE),
         selectizeInput("genes", "Gene(s)", choices = NULL, multiple = TRUE,
@@ -1130,6 +1136,10 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "sample_pick",
                          choices = stats::setNames(fids, fmt_sample(fids)),
                          server = TRUE)
+    updateSelectizeInput(session, "exclude_samples",
+                         choices = stats::setNames(fids, fmt_sample(fids)),
+                         selected = isolate(input$exclude_samples) %||% character(0),
+                         server = TRUE)
     mx <- ceiling(max(df$CADD, na.rm = TRUE))
     updateSliderInput(session, "cadd", max = mx, value = 0)
     updateSliderInput(session, "priority_cadd", max = mx)
@@ -1144,6 +1154,10 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "sample_pick",
                          choices = stats::setNames(fids, fmt_sample(fids)),
                          selected = isolate(input$sample_pick) %||% "",
+                         server = TRUE)
+    updateSelectizeInput(session, "exclude_samples",
+                         choices = stats::setNames(fids, fmt_sample(fids)),
+                         selected = isolate(input$exclude_samples) %||% character(0),
                          server = TRUE)
   }, ignoreInit = TRUE)
 
@@ -1161,6 +1175,7 @@ server <- function(input, output, session) {
     updateNumericInput(session, "gnomad", value = NA)
     updateSliderInput(session, "min_flags", value = 0)
     updateCheckboxGroupInput(session, "sample_group", selected = "MacTel")
+    updateSelectizeInput(session, "exclude_samples", selected = character(0))
   })
 
   # ---- core filtered dataset ------------------------------------------------
@@ -1168,6 +1183,11 @@ server <- function(input, output, session) {
   # an individual can be searched even if their diagnosis group is unticked.
   filtered_pre_group <- reactive({
     df <- raw(); req(df)
+
+    # Global sample exclusion — drops chosen samples from every view,
+    # independent of the sample-group selection below.
+    if (length(input$exclude_samples) > 0)
+      df <- dplyr::filter(df, !family_id %in% input$exclude_samples)
 
     if (length(input$tier) > 0)
       df <- dplyr::filter(df, Tier %in% input$tier)
@@ -1994,7 +2014,8 @@ server <- function(input, output, session) {
       gnomad        = input$gnomad %||% NA,
       min_flags     = input$min_flags %||% 0,
       priority_cadd = input$priority_cadd %||% 20,
-      sample_group  = oe(input$sample_group)
+      sample_group  = oe(input$sample_group),
+      exclude_samples = oe(input$exclude_samples)
     )
     json <- jsonlite::toJSON(vals, auto_unbox = TRUE)
     gsub("[\r\n]", "", jsonlite::base64_enc(charToRaw(as.character(json))))
@@ -2041,6 +2062,8 @@ server <- function(input, output, session) {
       updateSliderInput(session, "priority_cadd", value = vals$priority_cadd)
     if (!is.null(vals$sample_group))
       updateCheckboxGroupInput(session, "sample_group", selected = chr(vals$sample_group))
+    if (!is.null(vals$exclude_samples))
+      updateSelectizeInput(session, "exclude_samples", selected = chr(vals$exclude_samples))
     if (!is.null(vals$tab) && nzchar(vals$tab))
       bslib::nav_select("main_tabs", vals$tab, session = session)
     showNotification("Filters applied from code.", type = "message", duration = 4)
