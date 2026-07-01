@@ -102,9 +102,7 @@ plot_clnsig <- function(df, palette = "Default") {
     y_scale +
     ggplot2::scale_x_discrete(labels = function(x)
       stringr::str_wrap(gsub("_", " ", x), 12)) +
-    ggplot2::labs(title = "ClinVar classification",
-                  subtitle = if (use_log) "log10 y-axis" else NULL,
-                  x = NULL, y = "Variants") +
+    ggplot2::labs(title = "ClinVar classification", x = NULL, y = "Variants") +
     theme_app(legend.position = "none",
               axis.text.x = ggplot2::element_text(angle = 45, hjust = 1,
                                                   size = 8))
