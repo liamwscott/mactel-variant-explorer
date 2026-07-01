@@ -9,7 +9,8 @@
 IMPACT_LEVELS <- c("HIGH", "MODERATE", "LOW", "MODIFIER")
 TYPE_LEVELS   <- c("LOF", "SPLICING", "MISSENSE", "OTHER")
 
-CLNSIG_LEVELS <- c("Pathogenic", "Likely_pathogenic", "Pathogenic/Likely_pathogenic",
+# Ordered by ClinVar evidence strength (strongest pathogenic first).
+CLNSIG_LEVELS <- c("Pathogenic", "Pathogenic/Likely_pathogenic", "Likely_pathogenic",
                    "Conflicting_classifications", "Uncertain_significance",
                    "Benign/Likely_benign", "Not in ClinVar")
 
@@ -20,8 +21,8 @@ COL_TYPE <- c(LOF = "#9467BD", SPLICING = "#E377C2",
               MISSENSE = "#FF7F0E", OTHER = "#BCBD22")
 
 COL_CLNSIG <- c("Pathogenic"                   = "#D62728",
-                "Likely_pathogenic"             = "#FF7F0E",
                 "Pathogenic/Likely_pathogenic"  = "#9467BD",
+                "Likely_pathogenic"             = "#FF7F0E",
                 "Conflicting_classifications"   = "#BCBD22",
                 "Uncertain_significance"        = "#AEC7E8",
                 "Benign/Likely_benign"          = "#2CA02C",
