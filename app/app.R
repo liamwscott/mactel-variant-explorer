@@ -2123,16 +2123,12 @@ server <- function(input, output, session) {
     nm      <- preset_names(presets)
     saved_ui <- if (length(nm)) {
       fluidRow(
-        column(8, selectInput("saved_filter_pick", NULL, choices = nm,
-                              width = "100%")),
-        column(4, tags$div(
-          class = "d-flex gap-1",
-          actionButton("saved_filter_load",
-                       tagList(bsicons::bs_icon("box-arrow-in-down"), " Load"),
-                       class = "btn btn-outline-primary flex-fill"),
-          actionButton("saved_filter_delete", bsicons::bs_icon("trash"),
-                       class = "btn btn-outline-danger",
-                       title = "Delete this saved filter")))
+        column(9, selectInput("saved_filter_pick", NULL, width = "100%",
+                              choices = c("Choose a saved filter…" = "", nm))),
+        column(3, actionButton("saved_filter_delete",
+                               tagList(bsicons::bs_icon("trash"), " Delete"),
+                               class = "btn btn-outline-danger w-100",
+                               title = "Delete the selected saved filter"))
       )
     } else {
       tags$p(class = "text-muted small mb-2",
@@ -2185,8 +2181,18 @@ server <- function(input, output, session) {
   # Sidebar button: open the share/save dialog.
   observeEvent(input$filter_share, show_share_modal())
 
-  # Apply button inside the dialog decodes and applies the pasted code.
+  # Apply button inside the dialog: a preset chosen from the dropdown takes
+  # priority; otherwise fall back to whatever was pasted into the code box.
   observeEvent(input$filter_code_apply, {
+    pick <- input$saved_filter_pick %||% ""
+    if (nzchar(pick)) {
+      presets <- saved_filters_rv()
+      idx <- preset_index(presets, pick)
+      if (length(idx)) {
+        apply_filter_code(presets[[idx[1]]]$code)
+        return()
+      }
+    }
     apply_filter_code(input$filter_code_in)
   })
 
@@ -2215,33 +2221,54 @@ server <- function(input, output, session) {
     }
   })
 
-  # Load a saved preset by name (apply_filter_code closes the dialog).
-  observeEvent(input$saved_filter_load, {
-    presets <- saved_filters_rv()
-    idx <- preset_index(presets, input$saved_filter_pick)
-    if (!length(idx)) {
-      showNotification("Pick a saved filter first.", type = "warning")
+  # Delete the selected preset — first ask for confirmation. The chosen name is
+  # stashed because the confirm dialog replaces the share dialog (so the
+  # dropdown input is gone by the time the user clicks Yes).
+  pending_delete <- reactiveVal(NULL)
+  observeEvent(input$saved_filter_delete, {
+    nm <- input$saved_filter_pick %||% ""
+    if (!nzchar(nm)) {
+      showNotification("Choose a saved filter to delete first.", type = "warning")
       return()
     }
-    apply_filter_code(presets[[idx[1]]]$code)
+    pending_delete(nm)
+    showModal(modalDialog(
+      title = "Delete saved filter?",
+      tags$p("Delete the saved filter ", tags$strong(nm),
+             "? This cannot be undone."),
+      footer = tagList(
+        actionButton("saved_filter_delete_confirm",
+                     tagList(bsicons::bs_icon("trash"), " Yes, delete"),
+                     class = "btn btn-danger"),
+        actionButton("saved_filter_delete_cancel", "No",
+                     class = "btn btn-secondary"))
+    ))
   })
 
-  # Delete the selected preset, then refresh the dialog.
-  observeEvent(input$saved_filter_delete, {
+  # Confirmed: remove the preset and return to the share dialog.
+  observeEvent(input$saved_filter_delete_confirm, {
+    nm <- pending_delete()
     presets <- saved_filters_rv()
-    nm  <- input$saved_filter_pick
     idx <- preset_index(presets, nm)
-    if (!length(idx)) return()
-    presets <- presets[-idx[1]]
-    if (write_saved_filters(presets)) {
-      saved_filters_rv(presets)
-      showNotification(sprintf("Deleted filter \"%s\".", nm),
-                       type = "message", duration = 3)
-      show_share_modal()
-    } else {
-      showNotification("Could not update the saved-filters file.",
-                       type = "error", duration = 8)
+    if (length(idx)) {
+      presets <- presets[-idx[1]]
+      if (write_saved_filters(presets)) {
+        saved_filters_rv(presets)
+        showNotification(sprintf("Deleted filter \"%s\".", nm),
+                         type = "message", duration = 3)
+      } else {
+        showNotification("Could not update the saved-filters file.",
+                         type = "error", duration = 8)
+      }
     }
+    pending_delete(NULL)
+    show_share_modal()
+  })
+
+  # Cancelled: just reopen the share dialog, nothing removed.
+  observeEvent(input$saved_filter_delete_cancel, {
+    pending_delete(NULL)
+    show_share_modal()
   })
 
   # The variant detail block re-renders whenever the selected variant changes,
