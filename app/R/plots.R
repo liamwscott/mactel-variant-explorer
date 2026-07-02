@@ -144,6 +144,45 @@ plot_inheritance <- function(df, palette = "Default") {
   p
 }
 
+# --- VEP consequence ---------------------------------------------------------
+#' Horizontal bar chart of the most common VEP consequences. VEP reports one or
+#' more &-joined terms per variant (most severe first); we keep the lead term so
+#' compound calls collapse to a single, readable category. The top n_top
+#' consequences are shown, with any remainder pooled into "other".
+plot_consequence <- function(df, n_top = 12, palette = "Default") {
+  if (!("Consequence" %in% names(df))) return(NULL)
+  d <- df %>%
+    dplyr::filter(!is.na(Consequence), Consequence != "") %>%
+    dplyr::mutate(cons = sub("&.*", "", as.character(Consequence)))
+  if (nrow(d) == 0) return(NULL)
+
+  cnt <- d %>%
+    dplyr::count(cons, name = "n") %>%
+    dplyr::arrange(dplyr::desc(n))
+  if (nrow(cnt) > n_top) {
+    cnt <- rbind(cnt[seq_len(n_top), ],
+                 data.frame(cons = "other",
+                            n = sum(cnt$n[(n_top + 1):nrow(cnt)])))
+  }
+  cnt$label <- gsub("_", " ", cnt$cons)
+  cnt$label <- factor(cnt$label, levels = cnt$label[order(cnt$n)])  # asc y axis
+
+  p <- ggplot2::ggplot(cnt, ggplot2::aes(n, label, fill = label)) +
+    ggplot2::geom_col(colour = "white", width = 0.7) +
+    ggplot2::geom_text(ggplot2::aes(label = n), hjust = -0.2,
+                       fontface = "bold", size = 3.5) +
+    ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult = c(0, 0.15))) +
+    ggplot2::labs(title = "VEP consequence", x = "Variants", y = NULL) +
+    theme_app(legend.position = "none")
+  # Only override the default hue palette when an alternative is requested.
+  if (!is.null(palette) && palette != "Default") {
+    lv  <- levels(cnt$label)
+    def <- stats::setNames(seq_along(lv), lv)
+    p <- p + ggplot2::scale_fill_manual(values = apply_palette(def, palette))
+  }
+  p
+}
+
 # --- Top genes by sample count ----------------------------------------------
 #' Horizontal bar chart of the genes carrying variants in the most samples.
 #'   group_lookup: optional named character vector mapping family_id ->

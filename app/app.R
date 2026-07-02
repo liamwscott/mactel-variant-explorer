@@ -768,6 +768,8 @@ ui <- function(request) page_sidebar(
         card(card_header("CADD distribution"), plotOutput("p_cadd", height = 380)),
         card(card_header("ClinVar classification"), plotOutput("p_clnsig", height = 380))
       ),
+      card(card_header("VEP consequence"),
+           plotOutput("p_consequence", height = 420)),
       card(card_header("Top genes by number of samples"),
            plotOutput("p_genes", height = 500))
     ),
@@ -1263,6 +1265,7 @@ server <- function(input, output, session) {
   output$p_inherit <- renderPlot(plot_inheritance(filtered()))
   output$p_cadd    <- renderPlot(plot_cadd(filtered(), input$priority_cadd))
   output$p_clnsig  <- renderPlot(plot_clnsig(filtered()))
+  output$p_consequence <- renderPlot(plot_consequence(filtered()))
   output$p_genes   <- renderPlot(
     plot_top_genes(filtered(), 25, group_lookup = DIAG_GROUP_LOOKUP))
 
@@ -1310,8 +1313,14 @@ server <- function(input, output, session) {
     inherit = "Inheritance mode",
     cadd    = "CADD distribution",
     clnsig  = "ClinVar classification",
+    conseq  = "VEP consequence",
     genes   = "Top genes by samples"
   )
+
+  # Horizontal bar charts with long category labels get their own full-width row
+  # in the exported figure (per-key height, inches); everything else flows
+  # two-per-row above them.
+  OVERVIEW_FULLWIDTH_H <- c(conseq = 4.5, genes = 5.5)
 
   # Colour-palette options for the figure export. Labels are shown to the user;
   # values are passed to apply_palette() ("Default"/"Colour-blind" are handled
@@ -1378,23 +1387,27 @@ server <- function(input, output, session) {
         cadd    = function() or_blank(
           plot_cadd(d, input$priority_cadd, palette = pal), "No CADD values"),
         clnsig  = function() plot_clnsig(d, palette = pal),
+        conseq  = function() or_blank(
+          plot_consequence(d, 12, palette = pal), "No consequence data"),
         genes   = function() or_blank(
           plot_top_genes(d, 15, group_lookup = DIAG_GROUP_LOOKUP, palette = pal),
           "No genes to show")
       )
       panels <- lapply(sel, function(k) builders[[k]]())
+      names(panels) <- sel
 
-      # "genes" is a tall horizontal bar chart, so give it a full-width row of
-      # its own; the remaining panels flow two-per-row above it.
-      has_genes  <- "genes" %in% sel
-      compact    <- panels[sel != "genes"]
+      # Full-width panels (consequence, genes) each get their own row; the
+      # remaining panels flow two-per-row above them. full_sel keeps the
+      # canonical panel order.
+      full_sel   <- intersect(sel, names(OVERVIEW_FULLWIDTH_H))
+      compact    <- panels[setdiff(sel, full_sel)]
       comp_rows  <- if (length(compact) > 0) ceiling(length(compact) / 2) else 0
       # Physical height (inches) for each block, so the compact grid keeps a
       # constant per-row height instead of being squashed into one slot.
       COMPACT_ROW_H <- 3.3
-      GENES_H       <- 5.5
       compact_h  <- comp_rows * COMPACT_ROW_H
-      genes_h    <- if (has_genes) GENES_H else 0
+      full_h     <- if (length(full_sel) > 0)
+        sum(OVERVIEW_FULLWIDTH_H[full_sel]) else 0
 
       pieces  <- list()
       heights <- numeric(0)
@@ -1402,9 +1415,9 @@ server <- function(input, output, session) {
         pieces  <- c(pieces, list(patchwork::wrap_plots(compact, ncol = 2)))
         heights <- c(heights, compact_h)
       }
-      if (has_genes) {
-        pieces  <- c(pieces, list(panels[[which(sel == "genes")]]))
-        heights <- c(heights, genes_h)
+      for (k in full_sel) {
+        pieces  <- c(pieces, list(panels[[k]]))
+        heights <- c(heights, OVERVIEW_FULLWIDTH_H[[k]])
       }
 
       fig <- patchwork::wrap_plots(pieces, ncol = 1, heights = heights) +
@@ -1419,7 +1432,7 @@ server <- function(input, output, session) {
 
       # Total canvas height matches the sum of block heights (+ a little for the
       # title/subtitle), so nothing is stretched or crushed.
-      fig_h <- max(5, compact_h + genes_h + 1)
+      fig_h <- max(5, compact_h + full_h + 1)
       # device = "png" is required: downloadHandler hands us an extension-less
       # temp path, so ggsave cannot infer the format from the filename.
       ggplot2::ggsave(file, fig, device = "png", width = 13,
