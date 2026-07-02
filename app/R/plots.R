@@ -128,7 +128,10 @@ plot_cadd <- function(df, threshold = 20, palette = "Default") {
       legend.position.inside = c(0.98, 0.98),   # top-right, always clear here
       legend.justification   = c(1, 1),
       legend.background      = ggplot2::element_rect(
-        fill = scales::alpha("white", 0.6), colour = NA))
+        fill = scales::alpha("white", 0.6), colour = NA),
+      legend.key.size        = ggplot2::unit(11, "pt"),   # compact for this panel
+      legend.title           = ggplot2::element_text(size = 9),
+      legend.text            = ggplot2::element_text(size = 8))
 }
 
 # --- Inheritance -------------------------------------------------------------
