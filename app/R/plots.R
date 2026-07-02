@@ -117,8 +117,8 @@ plot_cadd <- function(df, threshold = 20, palette = "Default") {
     ggplot2::scale_fill_manual(values = apply_palette(COL_IMPACT, palette),
                                drop = TRUE, name = "Impact") +
     ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.08))) +
-    ggplot2::labs(title = "CADD distribution", x = "CADD", y = "Count") +
-    theme_app()
+    ggplot2::labs(title = "CADD distribution", x = NULL, y = "Count") +
+    theme_app(legend.position = "bottom")
 }
 
 # --- Inheritance -------------------------------------------------------------
