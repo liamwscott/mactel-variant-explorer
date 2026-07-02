@@ -2888,31 +2888,62 @@ server <- function(input, output, session) {
   # Lead-column order mirroring the interactive variant table (display name ->
   # underlying column). Any columns not listed here keep their original order
   # after these.
-  EXPORT_LEAD_ORDER <- c("SYMBOL", "Tier", "family_id", "Variant", "HGVSc",
-                         "HGVSp", "HGVSp_short", "Consequence", "IMPACT",
-                         "TYPE", "CADD", "REVEL", "am_class", "SpliceAI_max",
-                         "CLNSIG_clean", "gnomad_AF", "inheritance")
+  EXPORT_LEAD_ORDER <- c("SYMBOL", "Tier", "family_id", "n_samples", "Samples",
+                         "Variant", "HGVSc", "HGVSp", "HGVSp_short",
+                         "Consequence", "IMPACT", "TYPE", "CADD", "REVEL",
+                         "am_class", "SpliceAI_max", "CLNSIG_clean",
+                         "gnomad_AF", "inheritance")
 
-  export_dataset <- function(target) {
+  # Current row-layout choice from the export modal ("collapse" | "expand").
+  export_collapse <- function()
+    identical(input$export_mode %||% "collapse", "collapse")
+
+  # target: "variants" | "priority". collapse = TRUE gives one row per unique
+  # variant (CHROM/POS/REF/ALT) with a sample count + concatenated sample IDs;
+  # collapse = FALSE keeps the raw one-row-per-variant-per-sample layout.
+  export_dataset <- function(target, collapse = TRUE) {
     d <- if (identical(target, "priority")) priority() else filtered()
     if (is.null(d) || nrow(d) == 0) return(d)
-    # Synthesise the same "Variant" column the interactive table shows
-    # (CHROM:POS REF>ALT), order the leading columns to match that table, and
-    # rank rows by descending CADD (NAs last) as everywhere else in the app.
+    # Synthesise the same "Variant" column the interactive table shows.
+    d <- d %>%
+      dplyr::mutate(Variant = sprintf("%s:%s %s>%s", CHROM, POS, REF, ALT))
+    if (isTRUE(collapse)) {
+      d <- d %>%
+        dplyr::group_by(CHROM, POS, REF, ALT) %>%
+        dplyr::mutate(
+          n_samples = dplyr::n_distinct(family_id),
+          Samples   = paste(sort(unique(fmt_sample(family_id))), collapse = ", ")
+        ) %>%
+        dplyr::slice(1) %>%
+        dplyr::ungroup() %>%
+        dplyr::select(-dplyr::any_of("family_id"))
+    }
+    # Order the leading columns to match the interactive table, and rank rows by
+    # descending CADD (NAs last) as everywhere else in the app.
     d %>%
-      dplyr::mutate(Variant = sprintf("%s:%s %s>%s", CHROM, POS, REF, ALT)) %>%
       dplyr::relocate(dplyr::any_of(EXPORT_LEAD_ORDER)) %>%
       dplyr::arrange(dplyr::desc(CADD))
   }
 
-  export_default <- function(target, cols) {
+  export_default <- function(target, cols, collapse = TRUE) {
     def <- EXPORT_DEFAULT_COLS
+    if (isTRUE(collapse)) def <- c(def, "n_samples", "Samples")
     if (identical(target, "priority")) def <- c(def, EXPORT_PRIORITY_EXTRA)
     intersect(def, cols)
   }
 
+  # Column name -> friendly checkbox label for the export picker.
+  export_choice_labels <- function(cols) {
+    labels <- cols
+    labels[labels == "family_id"]   <- "Sample (family_id)"
+    labels[labels == "HGVSp_short"] <- "HGVSp (protein change, no prefix)"
+    labels[labels == "n_samples"]   <- "Number of samples"
+    labels[labels == "Samples"]     <- "Sample IDs"
+    stats::setNames(cols, labels)
+  }
+
   show_export_modal <- function(target) {
-    d <- export_dataset(target)
+    d <- export_dataset(target, collapse = TRUE)
     if (is.null(d) || nrow(d) == 0) {
       showModal(modalDialog(
         title = "Nothing to export", easyClose = TRUE,
@@ -2921,18 +2952,19 @@ server <- function(input, output, session) {
       return(invisible())
     }
     cols    <- names(d)
-    labels  <- cols
-    labels[labels == "family_id"]   <- "Sample (family_id)"
-    labels[labels == "HGVSp_short"] <- "HGVSp (protein change, no prefix)"
-    choices <- stats::setNames(cols, labels)
+    choices <- export_choice_labels(cols)
     label   <- if (identical(target, "priority")) "priority variants" else
                "filtered variants"
     showModal(modalDialog(
       title = sprintf("Export %s to Excel", label), size = "l",
       easyClose = FALSE,
       tags$p(class = "text-muted small",
-             sprintf("%s rows. Tick the columns to include, then download a formatted .xlsx table.",
-                     format(nrow(d), big.mark = ","))),
+             "Tick the columns to include, then download a formatted .xlsx table."),
+      radioButtons("export_mode", "Row layout",
+                   choices = c(
+                     "One row per variant (collapsed)" = "collapse",
+                     "One row per variant per sample"   = "expand"),
+                   selected = "collapse"),
       tags$style(HTML(".export-cols .checkbox{break-inside:avoid;margin:0 0 2px;}")),
       div(class = "mb-2",
           actionButton("export_all", "Select all",
@@ -2946,7 +2978,7 @@ server <- function(input, output, session) {
                         "overflow-y:auto;border:1px solid #dee2e6;",
                         "border-radius:6px;padding:10px;"),
           checkboxGroupInput("export_cols", NULL, choices = choices,
-                             selected = export_default(target, cols),
+                             selected = export_default(target, cols, TRUE),
                              width = "100%")),
       footer = tagList(
         modalButton("Cancel"),
@@ -2960,17 +2992,29 @@ server <- function(input, output, session) {
   observeEvent(input$xl_priority,
                { export_target("priority"); show_export_modal("priority") })
 
+  # Switching row layout changes which columns exist (collapsed adds the sample
+  # count + IDs and drops the per-sample family_id), so rebuild the picker.
+  observeEvent(input$export_mode, {
+    target <- export_target()
+    d <- export_dataset(target, export_collapse()); req(d)
+    cols <- names(d)
+    updateCheckboxGroupInput(session, "export_cols",
+                             choices  = export_choice_labels(cols),
+                             selected = export_default(target, cols, export_collapse()))
+  }, ignoreInit = TRUE)
+
   observeEvent(input$export_all, {
-    d <- export_dataset(export_target()); req(d)
+    d <- export_dataset(export_target(), export_collapse()); req(d)
     updateCheckboxGroupInput(session, "export_cols", selected = names(d))
   })
   observeEvent(input$export_none, {
     updateCheckboxGroupInput(session, "export_cols", selected = character(0))
   })
   observeEvent(input$export_reset, {
-    d <- export_dataset(export_target()); req(d)
+    d <- export_dataset(export_target(), export_collapse()); req(d)
     updateCheckboxGroupInput(session, "export_cols",
-                             selected = export_default(export_target(), names(d)))
+                             selected = export_default(export_target(), names(d),
+                                                       export_collapse()))
   })
 
   output$do_export_xlsx <- downloadHandler(
@@ -2978,17 +3022,20 @@ server <- function(input, output, session) {
       if (identical(export_target(), "priority")) "priority_variants" else
         "filtered_variants", Sys.Date()),
     content = function(file) {
-      target <- export_target()
-      d <- export_dataset(target); req(d)
+      target   <- export_target()
+      collapse <- export_collapse()
+      d <- export_dataset(target, collapse); req(d)
       sel <- input$export_cols
       if (is.null(sel) || length(sel) == 0)
-        sel <- export_default(target, names(d))
+        sel <- export_default(target, names(d), collapse)
       sel <- intersect(names(d), sel)          # keep original column order
       out <- d[, sel, drop = FALSE]
       if ("family_id" %in% names(out)) {
         out$family_id <- fmt_sample(out$family_id)
         names(out)[names(out) == "family_id"] <- "Sample"
       }
+      if ("n_samples" %in% names(out))
+        names(out)[names(out) == "n_samples"] <- "N samples"
       # HGVSp_short is the protein change without the transcript prefix (as in
       # the gene report). Give it the clean "HGVSp" header, unless the raw
       # prefixed HGVSp is also included (then keep the names distinct).
