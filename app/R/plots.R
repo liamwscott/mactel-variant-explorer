@@ -201,6 +201,11 @@ plot_top_genes <- function(df, n_top = 25, group_lookup = NULL,
   if (nrow(totals) == 0) return(NULL)
   gene_levels <- totals$SYMBOL[order(totals$n_samples)]   # ascending for the y axis
 
+  # "Top N" only makes sense when the cap actually truncates the gene list; when
+  # fewer genes than the cap are present, every gene is shown, so drop the count.
+  gene_title <- if (nrow(totals) < n_top) "Genes by samples" else
+    sprintf("Top %d genes by samples", n_top)
+
   # Which diagnosis groups are actually represented among these variants?
   groups_present <- character(0)
   if (!is.null(group_lookup)) {
@@ -219,8 +224,7 @@ plot_top_genes <- function(df, n_top = 25, group_lookup = NULL,
                            size = 3, fontface = "bold") +
         ggplot2::scale_x_continuous(
           expand = ggplot2::expansion(mult = c(0, 0.12))) +
-        ggplot2::labs(title = sprintf("Top %d genes by samples", n_top),
-                      x = "Samples", y = NULL) +
+        ggplot2::labs(title = gene_title, x = "Samples", y = NULL) +
         theme_app(legend.position = "none",
                   axis.text.y = ggplot2::element_text(face = "italic"))
     )
@@ -250,8 +254,7 @@ plot_top_genes <- function(df, n_top = 25, group_lookup = NULL,
     ggplot2::scale_fill_manual(values = apply_palette(COL_DIAG, palette),
                                drop = TRUE, name = "Diagnosis") +
     ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
-    ggplot2::labs(title = sprintf("Top %d genes by samples", n_top),
-                  x = "Samples", y = NULL) +
+    ggplot2::labs(title = gene_title, x = "Samples", y = NULL) +
     theme_app(axis.text.y = ggplot2::element_text(face = "italic"))
 }
 
