@@ -40,22 +40,27 @@ apply_palette <- function(default_named, palette = "Default") {
   stats::setNames(unname(cols), names(default_named))
 }
 
-# Return a y-axis scale for a categorical count bar chart. When the counts span
-# a wide range (largest category >= 20x the smallest non-zero one), a linear
-# axis buries the small-but-informative bars, so switch to a base-10 pseudo-log
-# scale (pseudo-log keeps counts of 0 and 1 sensible, unlike plain log10).
-# Otherwise use a linear axis. Shared by the vertical count bar charts.
+# Return a count-axis scale for a categorical count bar chart. When the counts
+# span a wide range (largest category >= 20x the smallest non-zero one), a
+# linear axis buries the small-but-informative bars, so switch to a base-10
+# pseudo-log scale (pseudo-log keeps counts of 0 and 1 sensible, unlike plain
+# log10). Otherwise use a linear axis. `axis` selects the count axis: "y" for
+# vertical bars, "x" for horizontal bars.
 dynamic_count_y_scale <- function(n,
-                                  expand = ggplot2::expansion(mult = c(0, 0.18))) {
-  nz      <- n[n > 0]
-  use_log <- length(nz) >= 2 && (max(nz) / min(nz)) >= 20
+                                  expand = ggplot2::expansion(mult = c(0, 0.18)),
+                                  axis = c("y", "x")) {
+  axis     <- match.arg(axis)
+  nz       <- n[n > 0]
+  use_log  <- length(nz) >= 2 && (max(nz) / min(nz)) >= 20
+  scale_fn <- if (axis == "x") ggplot2::scale_x_continuous
+              else             ggplot2::scale_y_continuous
   if (use_log) {
-    ggplot2::scale_y_continuous(
+    scale_fn(
       transform = scales::pseudo_log_trans(base = 10),
       breaks    = c(0, 1, 3, 10, 30, 100, 300, 1000),
       expand    = expand)
   } else {
-    ggplot2::scale_y_continuous(expand = expand)
+    scale_fn(expand = expand)
   }
 }
 
@@ -118,7 +123,7 @@ plot_cadd <- function(df, threshold = 20, palette = "Default") {
                                drop = TRUE, name = "Impact") +
     ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.08))) +
     ggplot2::labs(title = "CADD distribution", x = NULL, y = "Count") +
-    theme_app(legend.position = "bottom")
+    theme_app()
 }
 
 # --- Inheritance -------------------------------------------------------------
@@ -163,13 +168,15 @@ plot_consequence <- function(df, n_top = 12, palette = "Default") {
                             n = sum(cnt$n[(n_top + 1):nrow(cnt)])))
   }
   cnt$label <- gsub("_", " ", cnt$cons)
+  cnt$label <- sub(" variant$", "", cnt$label)          # trim redundant suffix
+  cnt$label <- stringr::str_wrap(cnt$label, 20)         # keep the column narrow
   cnt$label <- factor(cnt$label, levels = cnt$label[order(cnt$n)])  # asc y axis
 
   p <- ggplot2::ggplot(cnt, ggplot2::aes(n, label, fill = label)) +
     ggplot2::geom_col(colour = "white", width = 0.7) +
     ggplot2::geom_text(ggplot2::aes(label = n), hjust = -0.2,
                        fontface = "bold", size = 3.5) +
-    ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult = c(0, 0.15))) +
+    dynamic_count_y_scale(cnt$n, axis = "x") +
     ggplot2::labs(title = "VEP consequence", x = "Variants", y = NULL) +
     theme_app(legend.position = "none")
   # Only override the default hue palette when an alternative is requested.
