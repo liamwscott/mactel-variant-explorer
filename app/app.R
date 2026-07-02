@@ -39,6 +39,10 @@ DEFAULT_REAL    <- file.path(app_dir, "data", "candidate_variants_tier1_2.csv")
 DEFAULT_EXAMPLE <- file.path(app_dir, "data", "example_variants.csv")
 startup_path    <- if (file.exists(DEFAULT_REAL)) DEFAULT_REAL else DEFAULT_EXAMPLE
 
+# On-disk store for named filter presets. Kept local (gitignored) because saved
+# codes can embed real sample IDs via the exclude-samples filter.
+SAVED_FILTERS_PATH <- file.path(app_dir, "data", ".saved_filters.json")
+
 # DEBUG mode -----------------------------------------------------------------
 # When OFF (the default) the app starts with NO variant file loaded — the user
 # must explicitly upload/select their own Cavalier CSV. This guards against
@@ -2084,16 +2088,62 @@ server <- function(input, output, session) {
     invisible(TRUE)
   }
 
-  # Sidebar button: open the share/save dialog with this session's code ready to
-  # copy, plus a box to paste someone else's code.
-  observeEvent(input$filter_share, {
-    code <- make_filter_code()
+  # --- Named filter presets (persisted to disk) -----------------------------
+  # Presets live in a small JSON file (SAVED_FILTERS_PATH): each entry pairs a
+  # name with the same base64 code the copy box produces, so loading is just
+  # apply_filter_code(). A missing or corrupt file reads back as an empty list.
+  read_saved_filters <- function() {
+    if (!file.exists(SAVED_FILTERS_PATH)) return(list())
+    out <- tryCatch(
+      jsonlite::fromJSON(SAVED_FILTERS_PATH, simplifyDataFrame = FALSE),
+      error = function(e) NULL)
+    if (is.null(out) || !is.list(out)) list() else out
+  }
+  # Persist the preset list atomically (temp file + rename) so a failed write
+  # cannot corrupt the store. Returns TRUE on success.
+  write_saved_filters <- function(presets) {
+    tryCatch({
+      tmp <- tempfile(tmpdir = dirname(SAVED_FILTERS_PATH), fileext = ".json")
+      writeLines(jsonlite::toJSON(presets, auto_unbox = TRUE, pretty = TRUE), tmp)
+      file.rename(tmp, SAVED_FILTERS_PATH)
+      TRUE
+    }, error = function(e) FALSE)
+  }
+  saved_filters_rv <- reactiveVal(read_saved_filters())
+  preset_names <- function(presets)
+    vapply(presets, function(p) p$name %||% "", character(1))
+  preset_index <- function(presets, nm)
+    which(vapply(presets, function(p) identical(p$name, nm), logical(1)))
+
+  # Build (and re-show) the share/save dialog. Re-showing after a save or delete
+  # keeps the saved-filters dropdown in sync without partial UI updates.
+  show_share_modal <- function() {
+    code    <- make_filter_code()
+    presets <- saved_filters_rv()
+    nm      <- preset_names(presets)
+    saved_ui <- if (length(nm)) {
+      fluidRow(
+        column(8, selectInput("saved_filter_pick", NULL, choices = nm,
+                              width = "100%")),
+        column(4, tags$div(
+          class = "d-flex gap-1",
+          actionButton("saved_filter_load",
+                       tagList(bsicons::bs_icon("box-arrow-in-down"), " Load"),
+                       class = "btn btn-outline-primary flex-fill"),
+          actionButton("saved_filter_delete", bsicons::bs_icon("trash"),
+                       class = "btn btn-outline-danger",
+                       title = "Delete this saved filter")))
+      )
+    } else {
+      tags$p(class = "text-muted small mb-2",
+             "No saved filters yet — name and save your current filters below.")
+    }
     showModal(modalDialog(
       title = tagList(bsicons::bs_icon("sliders"), " Share or save filters"),
       tags$p(class = "text-muted",
-             "Copy this code to share your current filter settings or save them ",
-             "for later. The recipient pastes it below to apply the same filters ",
-             "to their own loaded data."),
+             "Copy this code to share your current filter settings, or save them ",
+             "under a name to reuse later from the dropdown. A recipient can paste ",
+             "a code below to apply the same filters to their own loaded data."),
       tags$label(class = "fw-bold", "Your current filters"),
       tags$div(
         class = "input-group mb-2",
@@ -2109,6 +2159,16 @@ server <- function(input, output, session) {
             "t.select();navigator.clipboard.writeText(t.value);",
             "this.innerHTML='Copied!';return false;"))
       ),
+      fluidRow(
+        column(8, textInput("saved_filter_name", NULL, width = "100%",
+                            placeholder = "Name these filters to save…")),
+        column(4, actionButton("saved_filter_save",
+                               tagList(bsicons::bs_icon("save"), " Save"),
+                               class = "btn btn-success w-100"))
+      ),
+      tags$hr(),
+      tags$label(class = "fw-bold", "Saved filters"),
+      saved_ui,
       tags$hr(),
       textAreaInput("filter_code_in", tags$span(class = "fw-bold", "Apply a filter code"),
                     value = "", rows = 2, width = "100%",
@@ -2120,11 +2180,68 @@ server <- function(input, output, session) {
                      class = "btn btn-primary"),
         modalButton("Close"))
     ))
-  })
+  }
+
+  # Sidebar button: open the share/save dialog.
+  observeEvent(input$filter_share, show_share_modal())
 
   # Apply button inside the dialog decodes and applies the pasted code.
   observeEvent(input$filter_code_apply, {
     apply_filter_code(input$filter_code_in)
+  })
+
+  # Save the current filters under a name (overwriting an existing same-named
+  # preset), then refresh the dialog so the new entry is selectable.
+  observeEvent(input$saved_filter_save, {
+    nm <- trimws(input$saved_filter_name %||% "")
+    if (!nzchar(nm)) {
+      showNotification("Give the filter a name first.", type = "warning")
+      return()
+    }
+    presets <- read_saved_filters()
+    entry <- list(name = nm, code = make_filter_code(),
+                  saved_at = format(Sys.time(), "%Y-%m-%d %H:%M"))
+    idx <- preset_index(presets, nm)
+    if (length(idx)) presets[[idx[1]]] <- entry
+    else            presets <- c(presets, list(entry))
+    if (write_saved_filters(presets)) {
+      saved_filters_rv(presets)
+      showNotification(sprintf("Saved filter \"%s\".", nm),
+                       type = "message", duration = 4)
+      show_share_modal()
+    } else {
+      showNotification("Could not write the saved-filters file (folder not writable?).",
+                       type = "error", duration = 8)
+    }
+  })
+
+  # Load a saved preset by name (apply_filter_code closes the dialog).
+  observeEvent(input$saved_filter_load, {
+    presets <- saved_filters_rv()
+    idx <- preset_index(presets, input$saved_filter_pick)
+    if (!length(idx)) {
+      showNotification("Pick a saved filter first.", type = "warning")
+      return()
+    }
+    apply_filter_code(presets[[idx[1]]]$code)
+  })
+
+  # Delete the selected preset, then refresh the dialog.
+  observeEvent(input$saved_filter_delete, {
+    presets <- saved_filters_rv()
+    nm  <- input$saved_filter_pick
+    idx <- preset_index(presets, nm)
+    if (!length(idx)) return()
+    presets <- presets[-idx[1]]
+    if (write_saved_filters(presets)) {
+      saved_filters_rv(presets)
+      showNotification(sprintf("Deleted filter \"%s\".", nm),
+                       type = "message", duration = 3)
+      show_share_modal()
+    } else {
+      showNotification("Could not update the saved-filters file.",
+                       type = "error", duration = 8)
+    }
   })
 
   # The variant detail block re-renders whenever the selected variant changes,

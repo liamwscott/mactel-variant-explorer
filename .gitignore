@@ -40,3 +40,6 @@ Thumbs.db
 
 # local working spreadsheets
 *.xlsx
+
+# saved filter presets (may embed real sample IDs; kept local, never committed)
+app/data/.saved_filters.json
