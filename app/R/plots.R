@@ -115,6 +115,26 @@ plot_clnsig <- function(df, palette = "Default") {
 plot_cadd <- function(df, threshold = 20, palette = "Default") {
   d <- dplyr::filter(df, !is.na(CADD))
   if (nrow(d) == 0) return(NULL)
+
+  # Drop the legend into whichever top corner has the most headroom: bin the
+  # CADD values the same way the histogram does (binwidth 2), then compare the
+  # tallest bar in the left vs right half of the range. Ties favour the right.
+  rng  <- range(d$CADD)
+  brks <- seq(floor(rng[1] / 2) * 2, ceiling(rng[2] / 2) * 2, by = 2)
+  if (length(brks) > 1) {
+    cnts      <- graphics::hist(d$CADD, breaks = brks,
+                                include.lowest = TRUE, plot = FALSE)$counts
+    mids      <- utils::head(brks, -1) + 1
+    mid_x     <- mean(rng)
+    left_max  <- max(c(0, cnts[mids <  mid_x]))
+    right_max <- max(c(0, cnts[mids >= mid_x]))
+  } else {
+    left_max <- right_max <- 0
+  }
+  on_right <- right_max <= left_max
+  leg_pos  <- if (on_right) c(0.98, 0.98) else c(0.02, 0.98)
+  leg_just <- if (on_right) c(1, 1)       else c(0, 1)
+
   ggplot2::ggplot(d, ggplot2::aes(CADD, fill = IMPACT)) +
     ggplot2::geom_histogram(binwidth = 2, colour = "white", alpha = 0.9) +
     ggplot2::geom_vline(xintercept = threshold, linetype = "dashed",
@@ -125,8 +145,8 @@ plot_cadd <- function(df, threshold = 20, palette = "Default") {
     ggplot2::labs(title = "CADD distribution", x = NULL, y = "Count") +
     theme_app(
       legend.position        = "inside",
-      legend.position.inside = c(0.98, 0.98),   # top-right, always clear here
-      legend.justification   = c(1, 1),
+      legend.position.inside = leg_pos,   # adaptive: emptier top corner
+      legend.justification   = leg_just,
       legend.background      = ggplot2::element_rect(
         fill = scales::alpha("white", 0.6), colour = NA),
       legend.key.size        = ggplot2::unit(11, "pt"),   # compact for this panel
