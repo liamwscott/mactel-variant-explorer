@@ -40,32 +40,49 @@ apply_palette <- function(default_named, palette = "Default") {
   stats::setNames(unname(cols), names(default_named))
 }
 
+# Return a y-axis scale for a categorical count bar chart. When the counts span
+# a wide range (largest category >= 20x the smallest non-zero one), a linear
+# axis buries the small-but-informative bars, so switch to a base-10 pseudo-log
+# scale (pseudo-log keeps counts of 0 and 1 sensible, unlike plain log10).
+# Otherwise use a linear axis. Shared by the vertical count bar charts.
+dynamic_count_y_scale <- function(n,
+                                  expand = ggplot2::expansion(mult = c(0, 0.18))) {
+  nz      <- n[n > 0]
+  use_log <- length(nz) >= 2 && (max(nz) / min(nz)) >= 20
+  if (use_log) {
+    ggplot2::scale_y_continuous(
+      transform = scales::pseudo_log_trans(base = 10),
+      breaks    = c(0, 1, 3, 10, 30, 100, 300, 1000),
+      expand    = expand)
+  } else {
+    ggplot2::scale_y_continuous(expand = expand)
+  }
+}
+
 # --- IMPACT distribution -----------------------------------------------------
 plot_impact <- function(df, palette = "Default") {
-  df %>%
-    dplyr::count(IMPACT, .drop = FALSE) %>%
-    ggplot2::ggplot(ggplot2::aes(IMPACT, n, fill = IMPACT)) +
+  cnt <- dplyr::count(df, IMPACT, .drop = FALSE)
+  ggplot2::ggplot(cnt, ggplot2::aes(IMPACT, n, fill = IMPACT)) +
     ggplot2::geom_col(colour = "white", width = 0.7) +
     ggplot2::geom_text(ggplot2::aes(label = n), vjust = -0.4,
                        fontface = "bold", size = 3.5) +
     ggplot2::scale_fill_manual(values = apply_palette(COL_IMPACT, palette),
                                drop = FALSE) +
-    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.18))) +
+    dynamic_count_y_scale(cnt$n) +
     ggplot2::labs(title = "VEP impact", x = NULL, y = "Variants") +
     theme_app(legend.position = "none", axis.text.x = angle_x())
 }
 
 # --- Variant TYPE ------------------------------------------------------------
 plot_type <- function(df, palette = "Default") {
-  df %>%
-    dplyr::count(TYPE, .drop = FALSE) %>%
-    ggplot2::ggplot(ggplot2::aes(TYPE, n, fill = TYPE)) +
+  cnt <- dplyr::count(df, TYPE, .drop = FALSE)
+  ggplot2::ggplot(cnt, ggplot2::aes(TYPE, n, fill = TYPE)) +
     ggplot2::geom_col(colour = "white", width = 0.7) +
     ggplot2::geom_text(ggplot2::aes(label = n), vjust = -0.4,
                        fontface = "bold", size = 3.5) +
     ggplot2::scale_fill_manual(values = apply_palette(COL_TYPE, palette),
                                drop = FALSE) +
-    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.18))) +
+    dynamic_count_y_scale(cnt$n) +
     ggplot2::labs(title = "Variant type", x = NULL, y = "Variants") +
     theme_app(legend.position = "none", axis.text.x = angle_x())
 }
@@ -74,32 +91,13 @@ plot_type <- function(df, palette = "Default") {
 plot_clnsig <- function(df, palette = "Default") {
   cnt <- dplyr::count(df, CLNSIG_clean, .drop = FALSE)
 
-  # Dynamic y-axis: when the counts span a wide range (e.g. Tier 2 genes where
-  # almost everything is "Not in ClinVar" while the pathogenic categories have a
-  # handful each), the small but informative bars vanish on a linear scale. If
-  # the largest category is >= 20x the smallest non-zero one, switch to a
-  # base-10 log scale so every category stays readable. A pseudo-log transform
-  # is used so counts of 0 and 1 still render sensibly (plain log10 is undefined
-  # at 0 and flattens 1 to the baseline). Otherwise use a linear axis.
-  nz      <- cnt$n[cnt$n > 0]
-  use_log <- length(nz) >= 2 && (max(nz) / min(nz)) >= 20
-  expand  <- ggplot2::expansion(mult = c(0, 0.18))
-  y_scale <- if (use_log) {
-    ggplot2::scale_y_continuous(
-      transform = scales::pseudo_log_trans(base = 10),
-      breaks    = c(0, 1, 3, 10, 30, 100, 300, 1000),
-      expand    = expand)
-  } else {
-    ggplot2::scale_y_continuous(expand = expand)
-  }
-
   ggplot2::ggplot(cnt, ggplot2::aes(CLNSIG_clean, n, fill = CLNSIG_clean)) +
     ggplot2::geom_col(colour = "white", width = 0.7) +
     ggplot2::geom_text(ggplot2::aes(label = n), vjust = -0.4,
                        fontface = "bold", size = 3.2) +
     ggplot2::scale_fill_manual(values = apply_palette(COL_CLNSIG, palette),
                                drop = FALSE) +
-    y_scale +
+    dynamic_count_y_scale(cnt$n) +
     ggplot2::scale_x_discrete(labels = function(x)
       stringr::str_wrap(gsub("_", " ", x), 12)) +
     ggplot2::labs(title = "ClinVar classification", x = NULL, y = "Variants") +
