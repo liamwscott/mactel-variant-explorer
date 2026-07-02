@@ -123,7 +123,12 @@ plot_cadd <- function(df, threshold = 20, palette = "Default") {
                                drop = TRUE, name = "Impact") +
     ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.08))) +
     ggplot2::labs(title = "CADD distribution", x = NULL, y = "Count") +
-    theme_app()
+    theme_app(
+      legend.position        = "inside",
+      legend.position.inside = c(0.98, 0.98),   # top-right, always clear here
+      legend.justification   = c(1, 1),
+      legend.background      = ggplot2::element_rect(
+        fill = scales::alpha("white", 0.6), colour = NA))
 }
 
 # --- Inheritance -------------------------------------------------------------
@@ -262,7 +267,13 @@ plot_top_genes <- function(df, n_top = 25, group_lookup = NULL,
                                drop = TRUE, name = "Diagnosis") +
     ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
     ggplot2::labs(title = gene_title, x = "Samples", y = NULL) +
-    theme_app(axis.text.y = ggplot2::element_text(face = "italic"))
+    theme_app(
+      axis.text.y            = ggplot2::element_text(face = "italic"),
+      legend.position        = "inside",
+      legend.position.inside = c(0.98, 0.02),   # bottom-right, always clear here
+      legend.justification   = c(1, 0),
+      legend.background      = ggplot2::element_rect(
+        fill = scales::alpha("white", 0.6), colour = NA))
 }
 
 # --- CADD vs REVEL scatter (interactive via plotly) --------------------------
