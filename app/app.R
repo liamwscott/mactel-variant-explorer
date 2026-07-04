@@ -575,7 +575,21 @@ ui <- function(request) page_sidebar(
                  class = "btn-outline-primary btn-sm w-100 mt-3",
                  title = paste("Copy a short code of the current filter settings to",
                                "share with a colleague or save for later — paste a",
-                               "code to apply those filters to your own data."))
+                               "code to apply those filters to your own data.")),
+
+    # Developer options, kept at the very bottom of the sidebar and visually
+    # separated so they are clearly distinct from the analysis filters above.
+    tags$hr(class = "my-3"),
+    div(class = "small text-muted fw-semibold mb-1",
+        bsicons::bs_icon("tools"), " Developer"),
+    checkboxInput("anon_mode",
+                  "Anonymise sample IDs (Patient1, Patient2, …)",
+                  value = FALSE),
+    helpText(class = "small text-muted mt-n2",
+             "Replaces every displayed sample ID (badges, tables, plots and ",
+             "the identity line) with a generic Patient N label so figures ",
+             "and screenshots carry no real identifiers. Filtering and the ",
+             "underlying data are unchanged.")
   ),
 
   # Header summary stats (custom flexbox cards — see stat_card()).
@@ -1154,7 +1168,7 @@ server <- function(input, output, session) {
   # Re-label the sample picker when the ID format toggle changes (the value
   # stays family_id; only the visible label changes). Tables/plots re-render
   # on their own because they read input$id_format via fmt_sample().
-  observeEvent(input$id_format, {
+  observeEvent(list(input$id_format, input$anon_mode), {
     df <- raw(); req(df)
     fids <- sort(unique(df$family_id))
     updateSelectizeInput(session, "sample_pick",
@@ -1459,10 +1473,32 @@ server <- function(input, output, session) {
   # The JS-string payload is sorted-on by DT (prefix is constant), so columns
   # still sort by the embedded id.
   .jsesc <- function(x) gsub("'", "\\\\'", as.character(x))
-  # Display label for a family_id under the currently selected ID format.
-  # Reading input$id_format here makes every table/plot that calls it
-  # re-render when the user flips the format toggle.
-  fmt_sample <- function(fid) format_sample_id(fid, input$id_format %||% "AID")
+  # Developer "anonymise" mode: a stable family_id -> "PatientN" map covering
+  # every sample in the loaded data (and sample sheet), numbered by sorted
+  # family_id so the labels stay consistent across tabs and screenshots. Built
+  # reactively because the loaded dataset can change.
+  anon_lookup <- reactive({
+    fids <- character(0)
+    df <- raw()
+    if (!is.null(df) && "family_id" %in% names(df))
+      fids <- as.character(df$family_id)
+    if (!is.null(SAMPLE_INFO) && "family_id" %in% names(SAMPLE_INFO))
+      fids <- c(fids, as.character(SAMPLE_INFO$family_id))
+    fids <- sort(unique(fids[!is.na(fids) & nzchar(fids)]))
+    stats::setNames(paste0("Patient", seq_along(fids)), fids)
+  })
+
+  # Display label for a family_id. In anonymise mode every id becomes "PatientN"
+  # (never the real id — an unmapped id falls back to a neutral placeholder);
+  # otherwise it uses the selected ID format. Reading the inputs here makes every
+  # table/plot that calls it re-render when either toggle flips.
+  fmt_sample <- function(fid) {
+    if (isTRUE(input$anon_mode)) {
+      out <- unname(anon_lookup()[as.character(fid)])
+      return(ifelse(is.na(out) | !nzchar(out), "Patient?", out))
+    }
+    format_sample_id(fid, input$id_format %||% "AID")
+  }
   link_gene <- function(sym) {
     ifelse(is.na(sym) | sym == "", as.character(sym), sprintf(
       "<a href='#' onclick=\"Shiny.setInputValue('cell_gene','%s',{priority:'event'});return false;\">%s</a>",
@@ -1912,15 +1948,10 @@ server <- function(input, output, session) {
     })
     group_badges <- Filter(Negate(is.null), group_badges)
 
-    # Identity line: always show BOTH identifiers regardless of the selected
+    # Identity line: normally show BOTH identifiers regardless of the selected
     # display format. Prefer the non-padded AID form (e.g. A1) from the sample
-    # sheet; fall back to the family_id key if the column is missing.
-    aid <- if ("AID" %in% names(row) &&
-               !is.na(row$AID) && nzchar(row$AID))
-      row$AID else input$sample_pick
-    pid <- if ("Patient_ID" %in% names(row) &&
-               !is.na(row$Patient_ID) && nzchar(row$Patient_ID))
-      row$Patient_ID else NA_character_
+    # sheet; fall back to the family_id key if the column is missing. In
+    # anonymise mode both real identifiers are hidden behind the PatientN label.
     fam <- family_of(input$sample_pick)
     fam_badge <- if (!is.na(fam)) {
       tags$span(class = "ms-3",
@@ -1933,16 +1964,30 @@ server <- function(input, output, session) {
             "Shiny.setInputValue('cell_family','%s',{priority:'event'});return false;",
             .jsesc(fam))))
     }
-    id_line <- div(
-      class = "mb-2 d-flex flex-wrap align-items-center",
-      tags$span(class = "me-3",
-        tags$span("AID ", class = "text-muted small"),
-        tags$span(aid, class = "fw-semibold")),
-      if (!is.na(pid)) tags$span(
-        tags$span("Patient ID ", class = "text-muted small"),
-        tags$span(pid, class = "fw-semibold")),
-      fam_badge
-    )
+    id_line <- if (isTRUE(input$anon_mode)) {
+      div(
+        class = "mb-2 d-flex flex-wrap align-items-center",
+        tags$span(class = "me-3",
+          tags$span("Sample ", class = "text-muted small"),
+          tags$span(fmt_sample(input$sample_pick), class = "fw-semibold")),
+        fam_badge)
+    } else {
+      aid <- if ("AID" %in% names(row) &&
+                 !is.na(row$AID) && nzchar(row$AID))
+        row$AID else input$sample_pick
+      pid <- if ("Patient_ID" %in% names(row) &&
+                 !is.na(row$Patient_ID) && nzchar(row$Patient_ID))
+        row$Patient_ID else NA_character_
+      div(
+        class = "mb-2 d-flex flex-wrap align-items-center",
+        tags$span(class = "me-3",
+          tags$span("AID ", class = "text-muted small"),
+          tags$span(aid, class = "fw-semibold")),
+        if (!is.na(pid)) tags$span(
+          tags$span("Patient ID ", class = "text-muted small"),
+          tags$span(pid, class = "fw-semibold")),
+        fam_badge)
+    }
 
     tagList(
       id_line,
