@@ -469,20 +469,17 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
 }
 
 # --- Pathway priority-variant summary ----------------------------------------
-# A schematic "flow" figure: each metabolic pathway is a stacked lane, laid out
-# left-to-right as a chain of gene nodes connected by reaction arrows. Every
-# priority variant (>= 1 of: CADD >= threshold, ClinVar P/LP, VEP HIGH) is drawn
-# as one dot above its gene, coloured by its strongest flag and ringed when it
-# carries more than one. Genes with no priority variant render as faded empty
-# nodes, so absence of findings is visible. The pathway/gene layout is entirely
-# data-driven from an editable spec (data/pathways.tsv) and the variant layer is
-# recomputed from the data on every render, so new data needs no code changes.
-
-# Colours for the three flag categories (strongest-flag encoding).
-PATHWAY_FLAG_COLOURS <- c(
-  "ClinVar P/LP" = "#C62828",
-  "VEP HIGH"     = "#EF6C00",
-  "High CADD"    = "#1565C0")
+# A schematic figure: each metabolic pathway is a stacked lane, laid out
+# left-to-right as a chain of gene nodes joined by reaction arrows. Every
+# priority variant (>= 1 of: ClinVar P/LP, VEP HIGH, CADD >= threshold) is drawn
+# as one marker above its gene. The three flags map to three independent visual
+# channels so they can be read simultaneously:
+#   * ClinVar P/LP  -> fill colour (crimson vs grey)
+#   * VEP HIGH       -> shape       (triangle vs circle)
+#   * CADD >= thr    -> border ring (black vs faint grey)
+# Genes with no priority variant render as faded nodes, so absence is visible.
+# The pathway/gene layout is data-driven from an editable spec (data/pathways.tsv)
+# and the variant layer is recomputed from the data on every render.
 
 plot_pathway_summary <- function(df, spec, threshold = 30) {
   if (is.null(spec) || nrow(spec) == 0) return(NULL)
@@ -498,23 +495,28 @@ plot_pathway_summary <- function(df, spec, threshold = 30) {
   spec$x <- spec$rank * x_gap
   spec$y <- lane_y[spec$pathway]
 
+  # Legend level labels for the three independent flag channels.
+  lv_clin <- c("ClinVar P/LP", "not P/LP")
+  lv_high <- c("VEP HIGH", "not HIGH")
+  lv_cadd <- c(sprintf("CADD >= %g", threshold), sprintf("CADD < %g", threshold))
+
   # --- priority-variant layer (one row per distinct variant) -----------------
   pv <- df
   if (!is.null(pv) && nrow(pv) > 0 && all(c("n_flags", "SYMBOL") %in% names(pv))) {
     pv <- pv[!is.na(pv$n_flags) & pv$n_flags >= 1, , drop = FALSE]
     pv <- dplyr::distinct(pv, SYMBOL, CHROM, POS, REF, ALT,
-                          flag_clinvar, flag_high, flag_cadd, n_flags)
+                          flag_clinvar, flag_high, flag_cadd)
     pv <- pv[pv$SYMBOL %in% spec$symbol, , drop = FALSE]
-    pv$category <- ifelse(pv$flag_clinvar, "ClinVar P/LP",
-                   ifelse(pv$flag_high,   "VEP HIGH", "High CADD"))
-    pv$multi <- pv$n_flags >= 2
   } else {
-    pv <- data.frame(SYMBOL = character(0), category = character(0),
-                     multi = logical(0))
+    pv <- data.frame(SYMBOL = character(0), flag_clinvar = logical(0),
+                     flag_high = logical(0), flag_cadd = logical(0))
   }
+  pv$clin <- factor(ifelse(pv$flag_clinvar, lv_clin[1], lv_clin[2]), levels = lv_clin)
+  pv$high <- factor(ifelse(pv$flag_high,    lv_high[1], lv_high[2]), levels = lv_high)
+  pv$cadd <- factor(ifelse(pv$flag_cadd,    lv_cadd[1], lv_cadd[2]), levels = lv_cadd)
 
   # Stack each gene's variants in a compact centred grid just above its node.
-  per_row <- 6; dx <- 0.17; dy <- 0.17; base_dy <- 0.42
+  per_row <- 6; dx <- 0.19; dy <- 0.19; base_dy <- 0.44
   dots <- do.call(rbind, lapply(spec$symbol, function(sym) {
     v <- pv[pv$SYMBOL == sym, , drop = FALSE]
     if (nrow(v) == 0) return(NULL)
@@ -527,7 +529,7 @@ plot_pathway_summary <- function(df, spec, threshold = 30) {
       (pos - 1 - (length(in_row) - 1) / 2) * dx
     }, numeric(1))
     data.frame(x = node$x + xoff, y = node$y + base_dy + row * dy,
-               category = v$category, multi = v$multi,
+               clin = v$clin, high = v$high, cadd = v$cadd,
                stringsAsFactors = FALSE)
   }))
 
@@ -541,24 +543,6 @@ plot_pathway_summary <- function(df, spec, threshold = 30) {
     data.frame(x = s$x[-nrow(s)], xend = s$x[-1], y = s$y[1], yend = s$y[1])
   }))
 
-  # Cross-pathway connectors from the serine-biosynthesis lane (the metabolic
-  # source) down to the glycine-cleavage and sphingolipid lanes. Matched by
-  # keyword so renaming pathways in the spec degrades gracefully (skipped if the
-  # source lane is not found).
-  src <- path_levels[grepl("serine", path_levels, ignore.case = TRUE)][1]
-  connectors <- NULL
-  if (!is.na(src)) {
-    src_x <- max(spec$x[spec$pathway == src])
-    src_y <- lane_y[[src]]
-    tgts  <- path_levels[grepl("glycine|sphing|spt", path_levels,
-                               ignore.case = TRUE)]
-    tgts  <- setdiff(tgts, src)
-    if (length(tgts)) connectors <- do.call(rbind, lapply(tgts, function(t) {
-      data.frame(x = src_x, xend = min(spec$x[spec$pathway == t]),
-                 y = src_y, yend = lane_y[[t]])
-    }))
-  }
-
   x_max <- max(spec$x) + x_gap
   # Lane header labels sit at the far left, above each lane.
   lane_df <- data.frame(pathway = path_levels, y = lane_y[path_levels])
@@ -569,12 +553,6 @@ plot_pathway_summary <- function(df, spec, threshold = 30) {
     data = lane_df,
     ggplot2::aes(xmin = 0.2, xmax = x_max, ymin = y - 0.8, ymax = y + 1.1),
     fill = "grey96", colour = NA)
-  # Cross-pathway connectors (drawn under the nodes).
-  if (!is.null(connectors)) p <- p + ggplot2::geom_segment(
-    data = connectors,
-    ggplot2::aes(x = x, xend = xend, y = y - 0.35, yend = yend + 0.55),
-    colour = "grey55", linewidth = 0.7, linetype = "22",
-    arrow = grid::arrow(length = grid::unit(7, "pt"), type = "closed"))
   # Intra-lane reaction arrows.
   if (!is.null(seg)) p <- p + ggplot2::geom_segment(
     data = seg, ggplot2::aes(x = x + 0.42, xend = xend - 0.42, y = y, yend = yend),
@@ -593,23 +571,30 @@ plot_pathway_summary <- function(df, spec, threshold = 30) {
     data = spec_has, ggplot2::aes(x = x, y = y, label = label),
     fill = "white", colour = "grey10", fontface = "bold",
     linewidth = 0.5, label.r = grid::unit(4, "pt"), size = 3.5)
-  # Priority-variant dots: fill = strongest flag, border = single vs multi-flag.
+  # Priority-variant dots: three independent visual channels so each flag is
+  # readable on its own — fill colour = ClinVar P/LP, shape = VEP HIGH impact,
+  # border ring = CADD threshold.
   if (!is.null(dots) && nrow(dots) > 0) p <- p +
     ggplot2::geom_point(
       data = dots,
-      ggplot2::aes(x = x, y = y, fill = category, colour = multi),
-      shape = 21, size = 2.7, stroke = 1.1) +
+      ggplot2::aes(x = x, y = y, fill = clin, shape = high, colour = cadd),
+      size = 3.0, stroke = 1.0) +
     ggplot2::scale_fill_manual(
-      values = PATHWAY_FLAG_COLOURS, drop = FALSE, name = "Priority flag",
-      limits = names(PATHWAY_FLAG_COLOURS)) +
+      values = stats::setNames(c("#C62828", "#CFD8DC"), lv_clin),
+      limits = lv_clin, drop = FALSE, name = "ClinVar") +
+    ggplot2::scale_shape_manual(
+      values = stats::setNames(c(24, 21), lv_high),
+      limits = lv_high, drop = FALSE, name = "VEP impact") +
     ggplot2::scale_colour_manual(
-      values = c("FALSE" = "grey45", "TRUE" = "black"),
-      labels = c("FALSE" = "1 flag", "TRUE" = ">= 2 flags"),
-      name = "Evidence") +
+      values = stats::setNames(c("black", "grey75"), lv_cadd),
+      limits = lv_cadd, drop = FALSE, name = "CADD") +
     ggplot2::guides(
       fill   = ggplot2::guide_legend(
-        order = 1, override.aes = list(colour = "grey45")),
-      colour = ggplot2::guide_legend(order = 2))
+        order = 1, override.aes = list(shape = 21, colour = "grey60")),
+      shape  = ggplot2::guide_legend(
+        order = 2, override.aes = list(fill = "grey75", colour = "grey60")),
+      colour = ggplot2::guide_legend(
+        order = 3, override.aes = list(shape = 21, fill = "grey85")))
   # Lane titles at the far left.
   p <- p + ggplot2::geom_text(
     data = lane_df,
@@ -624,7 +609,7 @@ plot_pathway_summary <- function(df, spec, threshold = 30) {
     ggplot2::labs(
       title    = "Priority variants across serine / glycine / sphingolipid metabolism",
       subtitle = sprintf(
-        "%d priority variant%s | flags: ClinVar P/LP, VEP HIGH, CADD >= %g | dark ring = >=2 flags | faded gene = no priority variant",
+        "%d priority variant%s | fill = ClinVar P/LP | shape = VEP HIGH | dark ring = CADD >= %g | faded gene = no priority variant",
         n_pv_total, if (n_pv_total == 1) "" else "s", threshold)) +
     theme_app(
       axis.title = ggplot2::element_blank(),
