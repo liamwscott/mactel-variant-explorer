@@ -584,12 +584,7 @@ ui <- function(request) page_sidebar(
         bsicons::bs_icon("tools"), " Developer"),
     checkboxInput("anon_mode",
                   "Anonymise sample IDs (Patient1, Patient2, …)",
-                  value = FALSE),
-    helpText(class = "small text-muted mt-n2",
-             "Replaces every displayed sample ID (badges, tables, plots and ",
-             "the identity line) with a generic Patient N label so figures ",
-             "and screenshots carry no real identifiers. Filtering and the ",
-             "underlying data are unchanged.")
+                  value = FALSE)
   ),
 
   # Header summary stats (custom flexbox cards — see stat_card()).
