@@ -578,7 +578,7 @@ plot_pathway_summary <- function(df, spec, threshold = 30) {
     ggplot2::geom_point(
       data = dots,
       ggplot2::aes(x = x, y = y, fill = clin, shape = high, colour = cadd),
-      size = 3.0, stroke = 1.0) +
+      size = 3.4, stroke = 1.6) +
     # One legend block: show only the "included if" state of each channel; the
     # opposite (grey fill / circle / faint ring) is implicit. Two of the three
     # sub-guides carry no title so they read as a single labelled legend.
@@ -589,7 +589,7 @@ plot_pathway_summary <- function(df, spec, threshold = 30) {
       values = stats::setNames(c(24, 21), lv_high),
       limits = lv_high, breaks = lv_high[1], drop = FALSE, name = NULL) +
     ggplot2::scale_colour_manual(
-      values = stats::setNames(c("black", "grey75"), lv_cadd),
+      values = stats::setNames(c("#00BFA5", "grey75"), lv_cadd),
       limits = lv_cadd, breaks = lv_cadd[1], drop = FALSE, name = NULL) +
     ggplot2::guides(
       fill   = ggplot2::guide_legend(
