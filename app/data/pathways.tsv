@@ -1,0 +1,14 @@
+pathway	symbol	rank	label
+Serine biosynthesis	PHGDH	1	PHGDH
+Serine biosynthesis	PSAT1	2	PSAT1
+Serine biosynthesis	PSPH	3	PSPH
+Glycine cleavage	GLDC	1	GLDC
+Glycine cleavage	AMT	2	AMT
+Glycine cleavage	GCSH	3	GCSH
+Glycine cleavage	DLD	4	DLD
+Sphingolipid (SPT)	SPTLC1	1	SPTLC1
+Sphingolipid (SPT)	SPTLC2	2	SPTLC2
+Sphingolipid (SPT)	SPTSSA	3	SPTSSA
+Sphingolipid (SPT)	ORMDL1	4	ORMDL1
+Sphingolipid (SPT)	ORMDL2	5	ORMDL2
+Sphingolipid (SPT)	ORMDL3	6	ORMDL3

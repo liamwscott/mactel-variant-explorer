@@ -95,6 +95,9 @@ GENE_INFO      <- load_gene_info(GENE_INFO_PATH)
 PROTEIN_DOMAINS <- load_protein_domains(file.path(app_dir, "data",
                                                   "protein_domains.tsv"))
 
+# Editable pathway-map spec for the "Pathway map" figure (gene symbols only).
+PATHWAY_SPEC <- load_pathway_spec(file.path(app_dir, "data", "pathways.tsv"))
+
 # The embedded 3D structure viewer needs the optional r3dmol package. When it is
 # absent the app still runs — the structure section is simply omitted.
 HAS_R3DMOL <- requireNamespace("r3dmol", quietly = TRUE)
@@ -855,6 +858,23 @@ ui <- function(request) page_sidebar(
                          class = "btn-sm btn-primary float-end")
         ),
         DT::DTOutput("gene_table")
+      )
+    ),
+
+    nav_panel(
+      "Pathway map",
+      icon = bsicons::bs_icon("diagram-3"),
+      card(
+        card_header(
+          "Priority variants across metabolic pathways",
+          tags$span(bsicons::bs_icon("info-circle"),
+                    " one dot per priority variant (≥ 1 flag); ",
+                    "edit data/pathways.tsv to change the lanes or genes",
+                    class = "text-muted small ms-2"),
+          downloadButton("dl_pathway", "Download PNG",
+                         class = "btn-sm btn-primary float-end")
+        ),
+        plotOutput("p_pathway", height = 640)
       )
     ),
 
@@ -1689,6 +1709,30 @@ server <- function(input, output, session) {
     validate(need(nrow(d) > 0, "No variants meet the chosen number of flags."))
     plot_top_genes(d, 20, group_lookup = DIAG_GROUP_LOOKUP)
   })
+
+  # ---- pathway map ----------------------------------------------------------
+  # Flow figure: priority variants (>=1 flag) placed on their genes across the
+  # serine/glycine/sphingolipid pathways. Layout comes from PATHWAY_SPEC
+  # (data/pathways.tsv); the variant layer is recomputed from filtered() so it
+  # always reflects the current data and CADD threshold.
+  pathway_plot <- function()
+    plot_pathway_summary(filtered(), PATHWAY_SPEC,
+                         threshold = input$priority_cadd %||% 30)
+
+  output$p_pathway <- renderPlot({
+    validate(need(!is.null(PATHWAY_SPEC) && nrow(PATHWAY_SPEC) > 0,
+                  "pathways.tsv not found or empty."))
+    pathway_plot()
+  }, res = 96)
+
+  output$dl_pathway <- downloadHandler(
+    filename = function() sprintf("pathway_map_%s.png", Sys.Date()),
+    content  = function(file) {
+      req(PATHWAY_SPEC)
+      ggplot2::ggsave(file, pathway_plot(), device = "png",
+                      width = 13, height = 7.5, dpi = 200, bg = "white")
+    }
+  )
 
   # ---- gene summary ---------------------------------------------------------
   gene_summary <- reactive({

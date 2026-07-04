@@ -467,3 +467,170 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
   attr(p, "sel_not_coding") <- sel_not_coding
   p
 }
+
+# --- Pathway priority-variant summary ----------------------------------------
+# A schematic "flow" figure: each metabolic pathway is a stacked lane, laid out
+# left-to-right as a chain of gene nodes connected by reaction arrows. Every
+# priority variant (>= 1 of: CADD >= threshold, ClinVar P/LP, VEP HIGH) is drawn
+# as one dot above its gene, coloured by its strongest flag and ringed when it
+# carries more than one. Genes with no priority variant render as faded empty
+# nodes, so absence of findings is visible. The pathway/gene layout is entirely
+# data-driven from an editable spec (data/pathways.tsv) and the variant layer is
+# recomputed from the data on every render, so new data needs no code changes.
+
+# Colours for the three flag categories (strongest-flag encoding).
+PATHWAY_FLAG_COLOURS <- c(
+  "ClinVar P/LP" = "#C62828",
+  "VEP HIGH"     = "#EF6C00",
+  "High CADD"    = "#1565C0")
+
+plot_pathway_summary <- function(df, spec, threshold = 30) {
+  if (is.null(spec) || nrow(spec) == 0) return(NULL)
+
+  spec <- spec[!is.na(spec$symbol) & nzchar(spec$symbol), , drop = FALSE]
+  spec$rank <- suppressWarnings(as.numeric(spec$rank))
+  path_levels <- unique(spec$pathway)               # lane order = spec order
+  n_lanes <- length(path_levels)
+  # Top pathway gets the highest y so it sits at the top of the canvas.
+  lane_y <- stats::setNames(rev(seq_len(n_lanes)) * 2, path_levels)
+  spec <- spec[order(match(spec$pathway, path_levels), spec$rank), ]
+  x_gap  <- 2.0
+  spec$x <- spec$rank * x_gap
+  spec$y <- lane_y[spec$pathway]
+
+  # --- priority-variant layer (one row per distinct variant) -----------------
+  pv <- df
+  if (!is.null(pv) && nrow(pv) > 0 && all(c("n_flags", "SYMBOL") %in% names(pv))) {
+    pv <- pv[!is.na(pv$n_flags) & pv$n_flags >= 1, , drop = FALSE]
+    pv <- dplyr::distinct(pv, SYMBOL, CHROM, POS, REF, ALT,
+                          flag_clinvar, flag_high, flag_cadd, n_flags)
+    pv <- pv[pv$SYMBOL %in% spec$symbol, , drop = FALSE]
+    pv$category <- ifelse(pv$flag_clinvar, "ClinVar P/LP",
+                   ifelse(pv$flag_high,   "VEP HIGH", "High CADD"))
+    pv$multi <- pv$n_flags >= 2
+  } else {
+    pv <- data.frame(SYMBOL = character(0), category = character(0),
+                     multi = logical(0))
+  }
+
+  # Stack each gene's variants in a compact centred grid just above its node.
+  per_row <- 6; dx <- 0.17; dy <- 0.17; base_dy <- 0.42
+  dots <- do.call(rbind, lapply(spec$symbol, function(sym) {
+    v <- pv[pv$SYMBOL == sym, , drop = FALSE]
+    if (nrow(v) == 0) return(NULL)
+    node <- spec[spec$symbol == sym, ][1, ]
+    m   <- nrow(v)
+    idx <- seq_len(m) - 1L
+    row <- idx %/% per_row
+    xoff <- vapply(seq_len(m), function(i) {
+      r <- row[i]; in_row <- which(row == r); pos <- match(i, in_row)
+      (pos - 1 - (length(in_row) - 1) / 2) * dx
+    }, numeric(1))
+    data.frame(x = node$x + xoff, y = node$y + base_dy + row * dy,
+               category = v$category, multi = v$multi,
+               stringsAsFactors = FALSE)
+  }))
+
+  spec$n_pv <- vapply(spec$symbol, function(s) sum(pv$SYMBOL == s), integer(1))
+  spec$has  <- spec$n_pv > 0
+
+  # Intra-lane reaction arrows (consecutive gene nodes).
+  seg <- do.call(rbind, lapply(path_levels, function(p) {
+    s <- spec[spec$pathway == p, ]; s <- s[order(s$rank), ]
+    if (nrow(s) < 2) return(NULL)
+    data.frame(x = s$x[-nrow(s)], xend = s$x[-1], y = s$y[1], yend = s$y[1])
+  }))
+
+  # Cross-pathway connectors from the serine-biosynthesis lane (the metabolic
+  # source) down to the glycine-cleavage and sphingolipid lanes. Matched by
+  # keyword so renaming pathways in the spec degrades gracefully (skipped if the
+  # source lane is not found).
+  src <- path_levels[grepl("serine", path_levels, ignore.case = TRUE)][1]
+  connectors <- NULL
+  if (!is.na(src)) {
+    src_x <- max(spec$x[spec$pathway == src])
+    src_y <- lane_y[[src]]
+    tgts  <- path_levels[grepl("glycine|sphing|spt", path_levels,
+                               ignore.case = TRUE)]
+    tgts  <- setdiff(tgts, src)
+    if (length(tgts)) connectors <- do.call(rbind, lapply(tgts, function(t) {
+      data.frame(x = src_x, xend = min(spec$x[spec$pathway == t]),
+                 y = src_y, yend = lane_y[[t]])
+    }))
+  }
+
+  x_max <- max(spec$x) + x_gap
+  # Lane header labels sit at the far left, above each lane.
+  lane_df <- data.frame(pathway = path_levels, y = lane_y[path_levels])
+
+  p <- ggplot2::ggplot()
+  # Faint lane bands.
+  p <- p + ggplot2::geom_rect(
+    data = lane_df,
+    ggplot2::aes(xmin = 0.2, xmax = x_max, ymin = y - 0.8, ymax = y + 1.1),
+    fill = "grey96", colour = NA)
+  # Cross-pathway connectors (drawn under the nodes).
+  if (!is.null(connectors)) p <- p + ggplot2::geom_segment(
+    data = connectors,
+    ggplot2::aes(x = x, xend = xend, y = y - 0.35, yend = yend + 0.55),
+    colour = "grey55", linewidth = 0.7, linetype = "22",
+    arrow = grid::arrow(length = grid::unit(7, "pt"), type = "closed"))
+  # Intra-lane reaction arrows.
+  if (!is.null(seg)) p <- p + ggplot2::geom_segment(
+    data = seg, ggplot2::aes(x = x + 0.42, xend = xend - 0.42, y = y, yend = yend),
+    colour = "grey45", linewidth = 0.6,
+    arrow = grid::arrow(length = grid::unit(6, "pt"), type = "closed"))
+  # Gene nodes: filled/bold when they carry priority variants, faded when empty.
+  # Drawn as fixed-colour layers (no colour aesthetic) so the colour scale is
+  # free for the variant-dot border encoding below.
+  spec_empty <- spec[!spec$has, , drop = FALSE]
+  spec_has   <- spec[spec$has,  , drop = FALSE]
+  if (nrow(spec_empty)) p <- p + ggplot2::geom_label(
+    data = spec_empty, ggplot2::aes(x = x, y = y, label = label),
+    fill = "white", colour = "grey65", fontface = "plain",
+    linewidth = 0.3, label.r = grid::unit(4, "pt"), size = 3.3)
+  if (nrow(spec_has)) p <- p + ggplot2::geom_label(
+    data = spec_has, ggplot2::aes(x = x, y = y, label = label),
+    fill = "white", colour = "grey10", fontface = "bold",
+    linewidth = 0.5, label.r = grid::unit(4, "pt"), size = 3.5)
+  # Priority-variant dots: fill = strongest flag, border = single vs multi-flag.
+  if (!is.null(dots) && nrow(dots) > 0) p <- p +
+    ggplot2::geom_point(
+      data = dots,
+      ggplot2::aes(x = x, y = y, fill = category, colour = multi),
+      shape = 21, size = 2.7, stroke = 1.1) +
+    ggplot2::scale_fill_manual(
+      values = PATHWAY_FLAG_COLOURS, drop = FALSE, name = "Priority flag",
+      limits = names(PATHWAY_FLAG_COLOURS)) +
+    ggplot2::scale_colour_manual(
+      values = c("FALSE" = "grey45", "TRUE" = "black"),
+      labels = c("FALSE" = "1 flag", "TRUE" = ">= 2 flags"),
+      name = "Evidence") +
+    ggplot2::guides(
+      fill   = ggplot2::guide_legend(
+        order = 1, override.aes = list(colour = "grey45")),
+      colour = ggplot2::guide_legend(order = 2))
+  # Lane titles at the far left.
+  p <- p + ggplot2::geom_text(
+    data = lane_df,
+    ggplot2::aes(x = 0.35, y = y + 1.35, label = pathway),
+    hjust = 0, vjust = 1, fontface = "bold", size = 3.6, colour = "grey25")
+
+  n_pv_total <- if (!is.null(dots)) nrow(dots) else 0
+  p +
+    ggplot2::coord_cartesian(clip = "off") +
+    ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult = c(0.02, 0.05))) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.08, 0.14))) +
+    ggplot2::labs(
+      title    = "Priority variants across serine / glycine / sphingolipid metabolism",
+      subtitle = sprintf(
+        "%d priority variant%s | flags: ClinVar P/LP, VEP HIGH, CADD >= %g | dark ring = >=2 flags | faded gene = no priority variant",
+        n_pv_total, if (n_pv_total == 1) "" else "s", threshold)) +
+    theme_app(
+      axis.title = ggplot2::element_blank(),
+      axis.text  = ggplot2::element_blank(),
+      axis.ticks = ggplot2::element_blank(),
+      panel.grid = ggplot2::element_blank(),
+      panel.border = ggplot2::element_blank(),
+      legend.position = "right")
+}

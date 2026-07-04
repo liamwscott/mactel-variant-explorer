@@ -103,6 +103,28 @@ load_gene_tiers <- function(path) {
     dplyr::distinct()
 }
 
+#' Load the editable pathway-map spec (TSV with columns pathway, symbol, rank,
+#' label). Defines which genes sit in each metabolic pathway lane and their
+#' left-to-right order for the Pathway map figure. `rank` is coerced to numeric;
+#' `label` defaults to the symbol when blank. Returns a tibble, or NULL if the
+#' file is absent. Contains only gene symbols — no patient data.
+load_pathway_spec <- function(path) {
+  if (is.null(path) || !file.exists(path)) return(NULL)
+  p <- readr::read_tsv(path, show_col_types = FALSE)
+  need <- c("pathway", "symbol", "rank")
+  if (!all(need %in% names(p))) return(NULL)
+  if (!"label" %in% names(p)) p$label <- p$symbol
+  p %>%
+    dplyr::mutate(
+      pathway = as.character(pathway),
+      symbol  = as.character(symbol),
+      rank    = suppressWarnings(as.numeric(rank)),
+      label   = ifelse(is.na(label) | !nzchar(label), symbol, as.character(label))
+    ) %>%
+    dplyr::filter(!is.na(symbol) & nzchar(symbol) & !is.na(pathway) & nzchar(pathway)) %>%
+    dplyr::distinct(pathway, symbol, .keep_all = TRUE)
+}
+
 #' Load the gene-information table (TSV with columns Gene_Symbol, Tier,
 #' Ensembl_ID, Chromosome, Evidence_Category, Evidence_Detail, Gene_Description).
 #' Returns a tibble keyed by SYMBOL, or NULL if the file is absent.
