@@ -579,15 +579,18 @@ plot_pathway_summary <- function(df, spec, threshold = 30) {
       data = dots,
       ggplot2::aes(x = x, y = y, fill = clin, shape = high, colour = cadd),
       size = 3.0, stroke = 1.0) +
+    # One legend block: show only the "included if" state of each channel; the
+    # opposite (grey fill / circle / faint ring) is implicit. Two of the three
+    # sub-guides carry no title so they read as a single labelled legend.
     ggplot2::scale_fill_manual(
       values = stats::setNames(c("#C62828", "#CFD8DC"), lv_clin),
-      limits = lv_clin, drop = FALSE, name = "ClinVar") +
+      limits = lv_clin, breaks = lv_clin[1], drop = FALSE, name = "Included if") +
     ggplot2::scale_shape_manual(
       values = stats::setNames(c(24, 21), lv_high),
-      limits = lv_high, drop = FALSE, name = "VEP impact") +
+      limits = lv_high, breaks = lv_high[1], drop = FALSE, name = NULL) +
     ggplot2::scale_colour_manual(
       values = stats::setNames(c("black", "grey75"), lv_cadd),
-      limits = lv_cadd, drop = FALSE, name = "CADD") +
+      limits = lv_cadd, breaks = lv_cadd[1], drop = FALSE, name = NULL) +
     ggplot2::guides(
       fill   = ggplot2::guide_legend(
         order = 1, override.aes = list(shape = 21, colour = "grey60")),
@@ -609,13 +612,14 @@ plot_pathway_summary <- function(df, spec, threshold = 30) {
     ggplot2::labs(
       title    = "Priority variants across serine / glycine / sphingolipid metabolism",
       subtitle = sprintf(
-        "%d priority variant%s | fill = ClinVar P/LP | shape = VEP HIGH | dark ring = CADD >= %g | faded gene = no priority variant",
-        n_pv_total, if (n_pv_total == 1) "" else "s", threshold)) +
+        "%d priority variant%s | grey / circle = criterion not met | faded gene = no priority variant",
+        n_pv_total, if (n_pv_total == 1) "" else "s")) +
     theme_app(
       axis.title = ggplot2::element_blank(),
       axis.text  = ggplot2::element_blank(),
       axis.ticks = ggplot2::element_blank(),
       panel.grid = ggplot2::element_blank(),
       panel.border = ggplot2::element_blank(),
-      legend.position = "right")
+      legend.position = "right",
+      legend.spacing.y = grid::unit(2, "pt"))
 }
