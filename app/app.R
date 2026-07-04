@@ -154,7 +154,7 @@ format_sample_id <- function(fid, fmt = "AID") {
 # (Sample, Variant, HGVSp protein change without the transcript prefix, Impact,
 # CADD, ClinVar class) plus the gene SYMBOL and the variant Consequence.
 EXPORT_DEFAULT_COLS <- c(
-  "SYMBOL", "family_id", "Variant", "HGVSp_short", "Consequence",
+  "SYMBOL", "family_id", "Family_ID", "Variant", "HGVSp_short", "Consequence",
   "IMPACT", "CADD", "CLNSIG_clean")
 # Extra defaults when exporting the Priority variants tab.
 EXPORT_PRIORITY_EXTRA <- c("n_flags", "why_prioritised",
@@ -1521,6 +1521,20 @@ server <- function(input, output, session) {
   link_family <- function(fam) sprintf(
     "<a href='#' onclick=\"Shiny.setInputValue('cell_family','%s',{priority:'event'});return false;\" class='fw-semibold badge rounded-pill' style='background-color:#00695C;color:#fff;text-decoration:none;cursor:pointer;'>%s</a>",
     .jsesc(fam), fam)
+  # Vectorised Family_ID lookup for a column of family_ids (NA for singletons).
+  family_id_of <- function(fid) {
+    fid <- as.character(fid)
+    if (length(FAMILY_OF) == 0) return(rep(NA_character_, length(fid)))
+    out <- unname(FAMILY_OF[fid])
+    out[!is.na(out) & !nzchar(out)] <- NA_character_
+    out
+  }
+  # A table column of clickable Family badges; singletons render as an empty
+  # cell. Vectorised over family_id.
+  link_family_col <- function(fid) {
+    fam <- family_id_of(fid)
+    ifelse(is.na(fam), "", link_family(fam))
+  }
   # Group a set of carrier family_ids into per-family blocks (family badge on its
   # own line above its sample badges), with a trailing Singletons block for
   # carriers that have no family. Falls back to a flat list when none belong to
@@ -1595,10 +1609,12 @@ server <- function(input, output, session) {
     if (links) {
       gene_col    <- link_gene(df$SYMBOL)
       sample_col  <- link_sample(df$family_id)
+      family_col  <- link_family_col(df$family_id)
       variant_col <- link_variant(df$CHROM, df$POS, df$REF, df$ALT)
     } else {
       gene_col    <- df$SYMBOL
       sample_col  <- fmt_sample(df$family_id)
+      family_col  <- { f <- family_id_of(df$family_id); ifelse(is.na(f), "", f) }
       variant_col <- sprintf("%s:%s %s>%s", df$CHROM, df$POS, df$REF, df$ALT)
     }
     df %>%
@@ -1606,6 +1622,7 @@ server <- function(input, output, session) {
         Gene = gene_col,
         Tier = Tier,
         Sample = sample_col,
+        Family = family_col,
         Variant = variant_col,
         HGVSc, HGVSp = HGVSp_short,
         Impact = IMPACT, Type = TYPE,
@@ -1650,6 +1667,7 @@ server <- function(input, output, session) {
     tbl <- priority() %>%
       dplyr::transmute(
         Gene = link_gene(SYMBOL), Tier = Tier, Sample = link_sample(family_id),
+        Family = link_family_col(family_id),
         Variant = link_variant(CHROM, POS, REF, ALT),
         HGVSc, HGVSp = HGVSp_short,
         Impact = IMPACT, Type = TYPE, CADD = round(CADD, 1),
@@ -3129,7 +3147,8 @@ server <- function(input, output, session) {
     filename = function() sprintf("priority_variants_%s.csv", Sys.Date()),
     content  = function(file) {
       d <- priority() %>%
-        dplyr::select(SYMBOL, Tier, family_id, CHROM, POS, REF, ALT,
+        dplyr::mutate(Family = { f <- family_id_of(family_id); ifelse(is.na(f), "", f) }) %>%
+        dplyr::select(SYMBOL, Tier, family_id, Family, CHROM, POS, REF, ALT,
                       HGVSc, HGVSp_short, IMPACT, TYPE, CADD, REVEL,
                       am_class, SpliceAI_max, CLNSIG_clean, gnomad_AF,
                       inheritance, flag_clinvar, flag_high, flag_cadd,
@@ -3149,7 +3168,8 @@ server <- function(input, output, session) {
   # Lead-column order mirroring the interactive variant table (display name ->
   # underlying column). Any columns not listed here keep their original order
   # after these.
-  EXPORT_LEAD_ORDER <- c("SYMBOL", "Tier", "family_id", "n_samples", "Samples",
+  EXPORT_LEAD_ORDER <- c("SYMBOL", "Tier", "family_id", "Family_ID", "Families",
+                         "n_samples", "Samples",
                          "Variant", "HGVSc", "HGVSp", "HGVSp_short",
                          "Consequence", "IMPACT", "TYPE", "CADD", "REVEL",
                          "am_class", "SpliceAI_max", "CLNSIG_clean",
@@ -3165,19 +3185,26 @@ server <- function(input, output, session) {
   export_dataset <- function(target, collapse = TRUE) {
     d <- if (identical(target, "priority")) priority() else filtered()
     if (is.null(d) || nrow(d) == 0) return(d)
-    # Synthesise the same "Variant" column the interactive table shows.
+    # Synthesise the same "Variant" column the interactive table shows, plus the
+    # per-sample Family_ID (blank for singletons).
     d <- d %>%
-      dplyr::mutate(Variant = sprintf("%s:%s %s>%s", CHROM, POS, REF, ALT))
+      dplyr::mutate(
+        Variant   = sprintf("%s:%s %s>%s", CHROM, POS, REF, ALT),
+        Family_ID = family_id_of(family_id))
     if (isTRUE(collapse)) {
       d <- d %>%
         dplyr::group_by(CHROM, POS, REF, ALT) %>%
         dplyr::mutate(
           n_samples = dplyr::n_distinct(family_id),
-          Samples   = paste(sort(unique(fmt_sample(family_id))), collapse = ", ")
+          Samples   = paste(sort(unique(fmt_sample(family_id))), collapse = ", "),
+          Families  = {
+            u <- sort(unique(Family_ID[!is.na(Family_ID)]))
+            if (length(u)) paste(u, collapse = ", ") else NA_character_
+          }
         ) %>%
         dplyr::slice(1) %>%
         dplyr::ungroup() %>%
-        dplyr::select(-dplyr::any_of("family_id"))
+        dplyr::select(-dplyr::any_of(c("family_id", "Family_ID")))
     }
     # Order the leading columns to match the interactive table, and rank rows by
     # descending CADD (NAs last) as everywhere else in the app.
@@ -3188,7 +3215,7 @@ server <- function(input, output, session) {
 
   export_default <- function(target, cols, collapse = TRUE) {
     def <- EXPORT_DEFAULT_COLS
-    if (isTRUE(collapse)) def <- c(def, "n_samples", "Samples")
+    if (isTRUE(collapse)) def <- c(def, "n_samples", "Samples", "Families")
     if (identical(target, "priority")) def <- c(def, EXPORT_PRIORITY_EXTRA)
     intersect(def, cols)
   }
@@ -3197,6 +3224,8 @@ server <- function(input, output, session) {
   export_choice_labels <- function(cols) {
     labels <- cols
     labels[labels == "family_id"]   <- "Sample (family_id)"
+    labels[labels == "Family_ID"]   <- "Family"
+    labels[labels == "Families"]    <- "Families"
     labels[labels == "HGVSp_short"] <- "HGVSp (protein change, no prefix)"
     labels[labels == "n_samples"]   <- "Number of samples"
     labels[labels == "Samples"]     <- "Sample IDs"
@@ -3295,6 +3324,8 @@ server <- function(input, output, session) {
         out$family_id <- fmt_sample(out$family_id)
         names(out)[names(out) == "family_id"] <- "Sample"
       }
+      if ("Family_ID" %in% names(out))
+        names(out)[names(out) == "Family_ID"] <- "Family"
       if ("n_samples" %in% names(out))
         names(out)[names(out) == "n_samples"] <- "N samples"
       # HGVSp_short is the protein change without the transcript prefix (as in
