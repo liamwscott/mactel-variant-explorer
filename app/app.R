@@ -2410,7 +2410,8 @@ server <- function(input, output, session) {
       dplyr::pull(family_id)
     if (length(carriers) == 0) return(NULL)
 
-    chips <- lapply(carriers, function(fid) {
+    # A single clickable diagnosis-coloured sample chip -> sample explorer.
+    sample_chip <- function(fid) {
       tags$a(href = "#", fmt_sample(fid),
              class = "badge rounded-pill me-1",
              style = sprintf(
@@ -2419,11 +2420,47 @@ server <- function(input, output, session) {
              onclick = sprintf(
                "Shiny.setInputValue('cell_sample','%s',{priority:'event'});return false;",
                .jsesc(fid)))
-    })
+    }
+    # A clickable teal Family badge -> Family explorer (mirrors the identity
+    # line). Family_ID (FAMILY<n>) is a safe label to show even in anon mode.
+    family_badge <- function(fam) tags$a(
+      href = "#", fam,
+      class = "fw-semibold badge rounded-pill me-2",
+      style = paste0("background-color:#00695C;color:#fff;",
+                     "text-decoration:none;cursor:pointer;"),
+      onclick = sprintf(
+        "Shiny.setInputValue('cell_family','%s',{priority:'event'});return false;",
+        .jsesc(fam)))
     legend_dot <- function(col, lab) tags$span(
       tags$span(style = sprintf(
         "display:inline-block;width:10px;height:10px;border-radius:50%%;background-color:%s;margin-right:3px;",
         col)), lab, class = "me-2")
+
+    # Group carriers by their Family_ID; carriers with no family become
+    # singletons. Families are ordered by numeric suffix (as FAMILY_CHOICES).
+    fam_of      <- vapply(carriers, family_of, character(1))
+    fam_present <- intersect(FAMILY_CHOICES, unique(fam_of[!is.na(fam_of)]))
+    singletons  <- carriers[is.na(fam_of)]
+
+    fam_rows <- lapply(fam_present, function(fam) {
+      members <- carriers[!is.na(fam_of) & fam_of == fam]
+      div(class = "mb-2 d-flex align-items-center flex-wrap",
+          family_badge(fam),
+          lapply(members, sample_chip))
+    })
+    singleton_row <- if (length(singletons)) {
+      div(class = "mb-2 d-flex align-items-center flex-wrap",
+          tags$span("Singletons", class = "text-muted small me-2"),
+          lapply(singletons, sample_chip))
+    } else NULL
+
+    # When no carrier belongs to a family, keep the simple flat chip layout.
+    body <- if (length(fam_present) == 0) {
+      div(class = "mb-2", lapply(carriers, sample_chip))
+    } else {
+      tagList(fam_rows, singleton_row)
+    }
+
     tagList(
       tags$p(tags$strong(sprintf("Carried by %d sample%s",
                                  length(carriers),
@@ -2432,7 +2469,7 @@ server <- function(input, output, session) {
       div(class = "small text-muted mb-1",
           legend_dot("#C62828", "MacTel"), legend_dot("#1565C0", "HSAN1"),
           legend_dot("#6A1B9A", "MacTel + HSAN1"),   legend_dot("#546E7A", "Control")),
-      div(class = "mb-2", chips)
+      body
     )
   })
 
