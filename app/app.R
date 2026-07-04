@@ -2444,14 +2444,15 @@ server <- function(input, output, session) {
 
     fam_rows <- lapply(fam_present, function(fam) {
       members <- carriers[!is.na(fam_of) & fam_of == fam]
-      div(class = "mb-2 d-flex align-items-center flex-wrap",
-          family_badge(fam),
-          lapply(members, sample_chip))
+      div(class = "mb-2",
+          div(class = "mb-1", family_badge(fam)),
+          div(class = "d-flex flex-wrap", lapply(members, sample_chip)))
     })
     singleton_row <- if (length(singletons)) {
-      div(class = "mb-2 d-flex align-items-center flex-wrap",
-          tags$span("Singletons", class = "text-muted small me-2"),
-          lapply(singletons, sample_chip))
+      div(class = "mb-2",
+          div(class = "mb-1",
+              tags$span("Singletons", class = "text-muted small")),
+          div(class = "d-flex flex-wrap", lapply(singletons, sample_chip)))
     } else NULL
 
     # When no carrier belongs to a family, keep the simple flat chip layout.
