@@ -1517,6 +1517,33 @@ server <- function(input, output, session) {
       "<a href='#' onclick=\"Shiny.setInputValue('%s','%s',{priority:'event'});return false;\">%s</a>",
       input_id, .jsesc(key), label)
   }
+  # Clickable teal Family badge (HTML string, for DT cells) -> Family explorer.
+  link_family <- function(fam) sprintf(
+    "<a href='#' onclick=\"Shiny.setInputValue('cell_family','%s',{priority:'event'});return false;\" class='fw-semibold badge rounded-pill' style='background-color:#00695C;color:#fff;text-decoration:none;cursor:pointer;'>%s</a>",
+    .jsesc(fam), fam)
+  # Group a set of carrier family_ids into per-family blocks (family badge on its
+  # own line above its sample badges), with a trailing Singletons block for
+  # carriers that have no family. Falls back to a flat list when none belong to
+  # a family. Returns one HTML string (used by the gene-landing variant table).
+  group_sample_links <- function(fids) {
+    fids <- as.character(fids)
+    if (length(fids) == 0) return("")
+    fam_of      <- vapply(fids, family_of, character(1))
+    fam_present <- intersect(FAMILY_CHOICES, unique(fam_of[!is.na(fam_of)]))
+    if (length(fam_present) == 0)
+      return(paste(link_sample(fids), collapse = " "))
+    blocks <- vapply(fam_present, function(fam) {
+      members <- fids[!is.na(fam_of) & fam_of == fam]
+      sprintf("<div class='mb-1'><div class='mb-1'>%s</div><div>%s</div></div>",
+              link_family(fam), paste(link_sample(members), collapse = " "))
+    }, character(1))
+    singletons <- fids[is.na(fam_of)]
+    if (length(singletons))
+      blocks <- c(blocks, sprintf(
+        "<div class='mb-1'><div class='mb-1'><span class='text-muted small'>Singletons</span></div><div>%s</div></div>",
+        paste(link_sample(singletons), collapse = " ")))
+    paste(blocks, collapse = "")
+  }
   # Diagnosis colour for one or more samples (family_id keys): red MacTel, blue
   # HSAN1, purple both, grey control/unknown. Vectorised (via DIAG_GROUP_LOOKUP +
   # COL_DIAG) so it can colour a whole table column at once. Shared by the sample
@@ -2639,8 +2666,7 @@ server <- function(input, output, session) {
         carriers = list(sort(unique(family_id))),
         .groups  = "drop") %>%
       dplyr::arrange(dplyr::desc(CADD))
-    sample_links <- vapply(tbl$carriers,
-      function(fs) paste(link_sample(fs), collapse = " "), character(1))
+    sample_links <- vapply(tbl$carriers, group_sample_links, character(1))
     out <- data.frame(
       Variant = link_variant(tbl$CHROM, tbl$POS, tbl$REF, tbl$ALT,
                              input_id = "modal_pick_variant"),
