@@ -324,17 +324,26 @@ plot_score_scatter <- function(df, threshold = 20) {
                         CADD, REVEL, CLNSIG_clean))
   if (nrow(d) < 3) return(NULL)
 
+  # Recode the colour variable to its display label rather than relabelling via
+  # the scale's `labels=` argument: ggplotly ignores a manual scale's labels and
+  # would fall back to the raw ClinVar terms in the interactive legend.
+  raw_lvl  <- names(CLNSIG_SCATTER_LABELS)
+  lbl      <- CLNSIG_SCATTER_LABELS[as.character(d$CLNSIG_clean)]
+  lbl[is.na(lbl)] <- as.character(d$CLNSIG_clean)[is.na(lbl)]
+  d$clin_label <- factor(lbl, levels = unique(CLNSIG_SCATTER_LABELS))
+
   # Graded ClinVar palette, but blue for unannotated variants (per request)
-  # rather than the neutral grey used elsewhere.
+  # rather than the neutral grey used elsewhere. Key it by the display labels.
   clin_cols <- COL_CLNSIG
   clin_cols["Not in ClinVar"] <- "#1565C0"
+  clin_cols <- stats::setNames(clin_cols[raw_lvl], CLNSIG_SCATTER_LABELS[raw_lvl])
 
-  ggplot2::ggplot(d, ggplot2::aes(CADD, REVEL, colour = CLNSIG_clean,
+  ggplot2::ggplot(d, ggplot2::aes(CADD, REVEL, colour = clin_label,
                                   text = tooltip, key = key)) +
     ggplot2::geom_hline(yintercept = 0.5, linetype = "dashed", colour = "grey60") +
     ggplot2::geom_vline(xintercept = threshold, linetype = "dashed", colour = "grey60") +
     ggplot2::geom_point(alpha = 0.8, size = 2.6) +
-    ggplot2::scale_colour_manual(values = clin_cols, labels = CLNSIG_SCATTER_LABELS,
+    ggplot2::scale_colour_manual(values = clin_cols,
                                  drop = TRUE, name = "ClinVar") +
     ggplot2::labs(title = "CADD vs REVEL (missense in silico)",
                   x = "CADD", y = "REVEL") +
