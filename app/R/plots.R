@@ -300,24 +300,47 @@ plot_top_genes <- function(df, n_top = 25, group_lookup = NULL,
 }
 
 # --- CADD vs REVEL scatter (interactive via plotly) --------------------------
+# Clean, self-explanatory legend labels for the two channels.
+CLNSIG_SCATTER_LABELS <- c(
+  "Pathogenic"                   = "ClinVar P",
+  "Pathogenic/Likely_pathogenic" = "ClinVar P/LP",
+  "Likely_pathogenic"            = "ClinVar LP",
+  "Conflicting_classifications"  = "ClinVar Conflicting",
+  "Uncertain_significance"       = "ClinVar VUS",
+  "Benign/Likely_benign"         = "ClinVar B/LB",
+  "Not in ClinVar"               = "Not in ClinVar")
+IMPACT_SCATTER_LABELS <- c(HIGH = "VEP High", MODERATE = "VEP Moderate",
+                           LOW = "VEP Low", MODIFIER = "VEP Modifier")
+IMPACT_SCATTER_SHAPES <- c(HIGH = 17, MODERATE = 15, LOW = 16, MODIFIER = 18)
+
+#' Colour encodes ClinVar classification (graded pathogenicity, blue when the
+#' variant is not in ClinVar); shape encodes VEP impact. `key` carries the
+#' variant identity so a plotly click can open its landing page.
 plot_score_scatter <- function(df, threshold = 20) {
   d <- df %>%
     dplyr::filter(!is.na(CADD), !is.na(REVEL)) %>%
     dplyr::mutate(
+      key = paste(CHROM, POS, REF, ALT),
       tooltip = sprintf("%s\n%s %s\nCADD %.1f | REVEL %.2f\n%s",
                         SYMBOL, HGVSc, ifelse(is.na(HGVSp_short), "", HGVSp_short),
                         CADD, REVEL, CLNSIG_clean))
   if (nrow(d) < 3) return(NULL)
-  ggplot2::ggplot(d, ggplot2::aes(CADD, REVEL, colour = IMPACT,
-                                  shape = is_pathLP, text = tooltip)) +
-    ggplot2::geom_point(alpha = 0.75, size = 2.4) +
-    ggplot2::scale_colour_manual(values = COL_IMPACT, drop = TRUE,
-                                 name = "Impact") +
-    ggplot2::scale_shape_manual(values = c(`FALSE` = 16, `TRUE` = 17),
-                                labels = c("Other", "ClinVar P/LP"),
-                                name = "") +
+
+  # Graded ClinVar palette, but blue for unannotated variants (per request)
+  # rather than the neutral grey used elsewhere.
+  clin_cols <- COL_CLNSIG
+  clin_cols["Not in ClinVar"] <- "#1565C0"
+
+  ggplot2::ggplot(d, ggplot2::aes(CADD, REVEL, colour = CLNSIG_clean,
+                                  shape = IMPACT, text = tooltip, key = key)) +
     ggplot2::geom_hline(yintercept = 0.5, linetype = "dashed", colour = "grey60") +
     ggplot2::geom_vline(xintercept = threshold, linetype = "dashed", colour = "grey60") +
+    ggplot2::geom_point(alpha = 0.8, size = 2.6) +
+    ggplot2::scale_colour_manual(values = clin_cols, labels = CLNSIG_SCATTER_LABELS,
+                                 drop = TRUE, name = "ClinVar") +
+    ggplot2::scale_shape_manual(values = IMPACT_SCATTER_SHAPES,
+                                labels = IMPACT_SCATTER_LABELS,
+                                drop = TRUE, name = "VEP impact") +
     ggplot2::labs(title = "CADD vs REVEL (missense in silico)",
                   x = "CADD", y = "REVEL") +
     theme_app()

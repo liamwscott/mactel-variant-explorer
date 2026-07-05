@@ -1479,7 +1479,19 @@ server <- function(input, output, session) {
     p <- plot_score_scatter(filtered(), threshold = input$priority_cadd %||% 20)
     validate(need(!is.null(p),
                   "Need ≥3 variants with both CADD and REVEL scores."))
-    plotly::ggplotly(p, tooltip = "text")
+    plotly::ggplotly(p, tooltip = "text", source = "scatter") %>%
+      plotly::event_register("plotly_click")
+  })
+
+  # Clicking a point on the scatter -> open that variant's landing page.
+  observeEvent(plotly::event_data("plotly_click", source = "scatter"), {
+    ed <- plotly::event_data("plotly_click", source = "scatter")
+    req(ed)
+    key <- ed$key
+    if (is.null(key) || length(key) == 0 || is.na(key[[1]])) return()
+    hit <- raw() %>%
+      dplyr::filter(paste(CHROM, POS, REF, ALT) == key[[1]])
+    if (nrow(hit) > 0) show_protein_modal(hit$SYMBOL[1], hit[1, ])
   })
 
   # ---- clickable-cell link builders -----------------------------------------
