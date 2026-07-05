@@ -208,6 +208,14 @@ if (length(FAMILY_CHOICES)) {
           FAMILY_CHOICES)]
 }
 
+# MacTel status per individual family_id (TRUE/FALSE), for the family export's
+# carrier / non-carrier split. Members absent from the sample sheet count as
+# non-MacTel.
+MACTEL_OF <- if (!is.null(SAMPLE_INFO) &&
+                 all(c("family_id", "is_mactel") %in% names(SAMPLE_INFO)))
+  stats::setNames(as.logical(SAMPLE_INFO$is_mactel),
+                  as.character(SAMPLE_INFO$family_id)) else logical(0)
+
 # Family_ID for a single individual family_id, or NA when it has no family.
 family_of <- function(fid) {
   fid <- as.character(fid)
@@ -933,11 +941,23 @@ ui <- function(request) page_sidebar(
       icon = bsicons::bs_icon("people-fill"),
       div(
         div(
-          class = "mb-3",
-          style = "min-width: 280px; max-width: 360px;",
-          selectizeInput("family_pick", "Select a family", width = "100%",
-                         choices = c("", FAMILY_CHOICES), selected = "",
-                         options = list(placeholder = "Choose a family…"))
+          class = "d-flex align-items-end gap-2 mb-3 flex-wrap",
+          div(
+            style = "min-width: 280px; max-width: 360px;",
+            selectizeInput("family_pick", "Select a family", width = "100%",
+                           choices = c("", FAMILY_CHOICES), selected = "",
+                           options = list(placeholder = "Choose a family…"))
+          ),
+          if (length(FAMILY_CHOICES)) tagList(
+            downloadButton("dl_family_export", "Export all families (Excel)",
+                           icon = bsicons::bs_icon("file-earmark-spreadsheet"),
+                           class = "btn-sm btn-success"),
+            tags$span(bsicons::bs_icon("info-circle"),
+                      " one row per family + variant, carrier / non-carrier ",
+                      "counts split by MacTel status; respects the current ",
+                      "variant filters",
+                      class = "text-muted small")
+          )
         ),
         uiOutput("family_header"),
         uiOutput("family_body")
@@ -1812,6 +1832,73 @@ server <- function(input, output, session) {
   family_data_all <- reactive({
     members <- family_member_keys(); req(length(members) > 0)
     raw() %>% dplyr::filter(family_id %in% members)
+  })
+
+  # Family-format export: one row per (family, variant) across ALL pedigree
+  # families, respecting the current variant filters (uses filtered_pre_group so
+  # the sample-group ticks don't drop family members from the carrier counts).
+  # Non-carriers are the family's sequenced members not carrying that variant;
+  # both carriers and non-carriers are split by MacTel status. Counts only (no
+  # sample IDs), so the sheet stays de-identified.
+  family_export_df <- reactive({
+    if (length(FAMILY_OF) == 0) return(NULL)
+    df <- filtered_pre_group()
+    if (is.null(df) || nrow(df) == 0) return(NULL)
+    df <- df %>%
+      dplyr::filter(family_id %in% names(FAMILY_OF)) %>%
+      dplyr::mutate(
+        Family = unname(FAMILY_OF[as.character(family_id)]),
+        .vkey  = paste(CHROM, POS, REF, ALT, sep = "||"))
+    if (nrow(df) == 0) return(NULL)
+
+    carr <- df %>%
+      dplyr::distinct(Family, .vkey, family_id) %>%
+      dplyr::group_by(Family, .vkey) %>%
+      dplyr::summarise(carriers = list(unique(family_id)), .groups = "drop")
+    reps <- df %>%
+      dplyr::group_by(Family, .vkey) %>% dplyr::slice(1) %>% dplyr::ungroup() %>%
+      dplyr::left_join(carr, by = c("Family", ".vkey"))
+
+    n_mac <- function(ids) {
+      m <- unname(MACTEL_OF[as.character(ids)]); sum(!is.na(m) & m)
+    }
+    counts <- lapply(seq_len(nrow(reps)), function(i) {
+      members  <- FAMILY_MEMBERS[[reps$Family[i]]]
+      carriers <- reps$carriers[[i]]
+      noncarr  <- setdiff(members, carriers)
+      data.frame(
+        Family_members        = length(members),
+        Carriers              = length(carriers),
+        Carriers_MacTel       = n_mac(carriers),
+        Carriers_nonMacTel    = length(carriers) - n_mac(carriers),
+        NonCarriers           = length(noncarr),
+        NonCarriers_MacTel    = n_mac(noncarr),
+        NonCarriers_nonMacTel = length(noncarr) - n_mac(noncarr))
+    })
+    counts <- do.call(rbind, counts)
+
+    out <- data.frame(
+      Family        = reps$Family,
+      Gene          = as.character(reps$SYMBOL),
+      Tier          = reps$Tier,
+      Variant       = sprintf("%s:%s %s>%s", reps$CHROM, reps$POS,
+                              reps$REF, reps$ALT),
+      HGVSc         = reps$HGVSc,
+      HGVSp         = reps$HGVSp_short,
+      Impact        = as.character(reps$IMPACT),
+      Type          = as.character(reps$TYPE),
+      CADD          = round(reps$CADD, 1),
+      REVEL         = round(reps$REVEL, 3),
+      AlphaMissense = reps$am_class,
+      ClinVar       = as.character(reps$CLNSIG_clean),
+      gnomAD_AF     = signif(reps$gnomad_AF, 3),
+      Inheritance   = reps$inheritance,
+      counts,
+      stringsAsFactors = FALSE, check.names = FALSE)
+    # Family in the same numeric order as the dropdown, then most-shared and
+    # highest-CADD variants first within each family (NA CADD sorts last).
+    out[order(match(out$Family, FAMILY_CHOICES),
+              -out$Carriers, -out$CADD), , drop = FALSE]
   })
 
   # Collapse a family's variant rows to one row per unique variant, adding a
@@ -3398,6 +3485,16 @@ server <- function(input, output, session) {
       write_variants_xlsx(out, file, sheet =
         if (identical(target, "priority")) "Priority variants" else "Variants")
       removeModal()
+    }
+  )
+
+  output$dl_family_export <- downloadHandler(
+    filename = function() sprintf("family_variants_%s.xlsx", Sys.Date()),
+    content  = function(file) {
+      d <- family_export_df()
+      if (is.null(d) || nrow(d) == 0)
+        d <- data.frame(Note = "No family variants pass the current filters.")
+      write_variants_xlsx(d, file, sheet = "Family variants")
     }
   )
 
