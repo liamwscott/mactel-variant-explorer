@@ -1476,7 +1476,7 @@ server <- function(input, output, session) {
 
   # ---- scatter --------------------------------------------------------------
   output$scatter <- plotly::renderPlotly({
-    p <- plot_score_scatter(filtered())
+    p <- plot_score_scatter(filtered(), threshold = input$priority_cadd %||% 20)
     validate(need(!is.null(p),
                   "Need ≥3 variants with both CADD and REVEL scores."))
     plotly::ggplotly(p, tooltip = "text")
@@ -2777,7 +2777,8 @@ server <- function(input, output, session) {
     # Gene report (no single variant): label every position on the lollipop.
     p <- tryCatch(plot_variant_lollipop(gdf, ddf, gene, sel_key,
                                         label_all = !has_row,
-                                        italic_gene = TRUE),
+                                        italic_gene = TRUE,
+                                        threshold = input$priority_cadd %||% 20),
                   error = function(e) NULL)
     plot_html <- "<p class='muted'>No protein-coding positions to plot for this gene.</p>"
     if (!is.null(p)) {
@@ -2999,7 +3000,8 @@ server <- function(input, output, session) {
     row <- modal_variant()
     sel_key <- if (!is.null(row) && nrow(row) > 0)
       paste(row$CHROM, row$POS, row$REF, row$ALT) else NULL
-    p <- plot_variant_lollipop(gdf, ddf, gene, sel_key)
+    p <- plot_variant_lollipop(gdf, ddf, gene, sel_key,
+                               threshold = input$priority_cadd %||% 20)
     validate(need(!is.null(p),
                   "No protein-coding (amino-acid) positions to plot for this gene."))
     gg <- plotly::ggplotly(p, tooltip = "text", source = "lollipop") %>%
@@ -3040,7 +3042,8 @@ server <- function(input, output, session) {
         paste(row$CHROM, row$POS, row$REF, row$ALT) else NULL
       p <- tryCatch(plot_variant_lollipop(gdf, ddf, gene, sel_key,
                                           label_all = TRUE,
-                                          italic_gene = TRUE),
+                                          italic_gene = TRUE,
+                                          threshold = input$priority_cadd %||% 20),
                     error = function(e) NULL)
       req(!is.null(p))
       p <- p +

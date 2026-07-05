@@ -300,7 +300,7 @@ plot_top_genes <- function(df, n_top = 25, group_lookup = NULL,
 }
 
 # --- CADD vs REVEL scatter (interactive via plotly) --------------------------
-plot_score_scatter <- function(df) {
+plot_score_scatter <- function(df, threshold = 20) {
   d <- df %>%
     dplyr::filter(!is.na(CADD), !is.na(REVEL)) %>%
     dplyr::mutate(
@@ -317,7 +317,7 @@ plot_score_scatter <- function(df) {
                                 labels = c("Other", "ClinVar P/LP"),
                                 name = "") +
     ggplot2::geom_hline(yintercept = 0.5, linetype = "dashed", colour = "grey60") +
-    ggplot2::geom_vline(xintercept = 20, linetype = "dashed", colour = "grey60") +
+    ggplot2::geom_vline(xintercept = threshold, linetype = "dashed", colour = "grey60") +
     ggplot2::labs(title = "CADD vs REVEL (missense in silico)",
                   x = "CADD", y = "REVEL") +
     theme_app()
@@ -347,7 +347,8 @@ aa_position <- function(hgvsp) {
 #'              ggplotly cannot convert plotmath titles (that view italicises the
 #'              gene with an HTML tag after conversion instead).
 plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
-                                  label_all = FALSE, italic_gene = FALSE) {
+                                  label_all = FALSE, italic_gene = FALSE,
+                                  threshold = 20) {
   v <- gene_df %>%
     dplyr::mutate(
       aa  = aa_position(HGVSp_short),
@@ -403,7 +404,7 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
                                  name = "ClinVar") +
     ggplot2::scale_size_continuous(range = c(2.5, 7), name = "Samples",
                                    breaks = scales::breaks_pretty(4)) +
-    ggplot2::geom_hline(yintercept = 20, linetype = "dashed",
+    ggplot2::geom_hline(yintercept = threshold, linetype = "dashed",
                         colour = "red", linewidth = 0.6)
 
   # highlight the clicked variant. If it has no amino-acid position it is not
@@ -459,8 +460,8 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
       title    = if (isTRUE(italic_gene))
                    bquote(italic(.(gene)) * " protein lollipop")
                  else sprintf("%s protein lollipop", gene),
-      subtitle = sprintf("%g aa | height = CADD (dashed = 20) | colour = ClinVar | size = #samples",
-                         prot_len),
+      subtitle = sprintf("%g aa | height = CADD (dashed = %g) | colour = ClinVar | size = #samples",
+                         prot_len, threshold),
       x = "Amino-acid position", y = "CADD") +
     theme_app()
 
