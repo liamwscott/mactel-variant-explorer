@@ -940,24 +940,23 @@ ui <- function(request) page_sidebar(
       "Family explorer",
       icon = bsicons::bs_icon("people-fill"),
       div(
+        if (length(FAMILY_CHOICES)) div(
+          class = "d-flex align-items-center gap-2 mb-3 flex-wrap",
+          downloadButton("dl_family_export", "Export all families (Excel)",
+                         icon = bsicons::bs_icon("file-earmark-spreadsheet"),
+                         class = "btn-sm btn-success"),
+          tags$span(bsicons::bs_icon("info-circle"),
+                    " one row per family + variant, carrier / non-carrier ",
+                    "counts split by MacTel status; respects the current ",
+                    "variant filters",
+                    class = "text-muted small")
+        ),
         div(
-          class = "d-flex align-items-end gap-2 mb-3 flex-wrap",
-          div(
-            style = "min-width: 280px; max-width: 360px;",
-            selectizeInput("family_pick", "Select a family", width = "100%",
-                           choices = c("", FAMILY_CHOICES), selected = "",
-                           options = list(placeholder = "Choose a family…"))
-          ),
-          if (length(FAMILY_CHOICES)) tagList(
-            downloadButton("dl_family_export", "Export all families (Excel)",
-                           icon = bsicons::bs_icon("file-earmark-spreadsheet"),
-                           class = "btn-sm btn-success"),
-            tags$span(bsicons::bs_icon("info-circle"),
-                      " one row per family + variant, carrier / non-carrier ",
-                      "counts split by MacTel status; respects the current ",
-                      "variant filters",
-                      class = "text-muted small")
-          )
+          class = "mb-3",
+          style = "min-width: 280px; max-width: 360px;",
+          selectizeInput("family_pick", "Select a family", width = "100%",
+                         choices = c("", FAMILY_CHOICES), selected = "",
+                         options = list(placeholder = "Choose a family…"))
         ),
         uiOutput("family_header"),
         uiOutput("family_body")
