@@ -823,7 +823,11 @@ ui <- function(request) page_sidebar(
       "Score scatter",
       icon = bsicons::bs_icon("graph-up"),
       card(
-        card_header("CADD vs REVEL — hover for variant detail"),
+        card_header(
+          "CADD vs REVEL — hover for variant detail",
+          downloadButton("dl_scatter", "Download PNG",
+                         class = "btn-sm btn-primary float-end")
+        ),
         plotly::plotlyOutput("scatter", height = 600)
       )
     ),
@@ -1512,6 +1516,16 @@ server <- function(input, output, session) {
       dplyr::filter(paste(CHROM, POS, REF, ALT) == key[[1]])
     if (nrow(hit) > 0) show_protein_modal(hit$SYMBOL[1], hit[1, ])
   })
+
+  output$dl_scatter <- downloadHandler(
+    filename = function() sprintf("score_scatter_%s.png", Sys.Date()),
+    content  = function(file) {
+      p <- plot_score_scatter(filtered(), threshold = input$priority_cadd %||% 20)
+      req(!is.null(p))
+      ggplot2::ggsave(file, p, device = "png",
+                      width = 7, height = 6.5, dpi = 200, bg = "white")
+    }
+  )
 
   # ---- clickable-cell link builders -----------------------------------------
   # Each renders an <a> that fires a Shiny input carrying the row's identity, so
