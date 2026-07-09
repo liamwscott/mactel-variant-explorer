@@ -394,6 +394,10 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
       ifelse(is.na(HGVSp_short), "(no HGVSp)", HGVSp_short),
       aa, CADD, as.character(CLNSIG_clean), n_carriers))
 
+  # When every variant is seen in exactly one sample the size channel carries
+  # no information, so drop it (fixed dot size, no "Samples" legend).
+  single_sample <- all(vv$n_carriers == 1)
+
   prot_len <- if (!is.null(dom_df) && nrow(dom_df) > 0)
     suppressWarnings(max(dom_df$Protein_Length, na.rm = TRUE)) else NA_real_
   if (!is.finite(prot_len)) prot_len <- max(vv$aa, na.rm = TRUE)
@@ -423,14 +427,20 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
     ggplot2::geom_segment(data = vv,
                           ggplot2::aes(x = aa, xend = aa, y = 0, yend = CADD),
                           colour = "grey70", linewidth = 0.5) +
-    ggplot2::geom_point(data = vv,
-                        ggplot2::aes(x = aa, y = CADD,
-                                     colour = CLNSIG_clean, size = n_carriers,
-                                     text = tooltip, key = key)) +
+    (if (single_sample)
+       ggplot2::geom_point(data = vv,
+                           ggplot2::aes(x = aa, y = CADD, colour = CLNSIG_clean,
+                                        text = tooltip, key = key), size = 4)
+     else
+       ggplot2::geom_point(data = vv,
+                           ggplot2::aes(x = aa, y = CADD, colour = CLNSIG_clean,
+                                        size = n_carriers,
+                                        text = tooltip, key = key))) +
     ggplot2::scale_colour_manual(values = COL_CLNSIG, drop = TRUE,
                                  name = "ClinVar") +
-    ggplot2::scale_size_continuous(range = c(2.5, 7), name = "Samples",
-                                   breaks = scales::breaks_pretty(4)) +
+    (if (!single_sample)
+       ggplot2::scale_size_continuous(range = c(2.5, 7), name = "Samples",
+                                      breaks = scales::breaks_pretty(4))) +
     ggplot2::geom_hline(yintercept = threshold, linetype = "dashed",
                         colour = "red", linewidth = 0.6)
 
@@ -487,8 +497,9 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
       title    = if (isTRUE(italic_gene))
                    bquote(italic(.(gene)) * " protein lollipop")
                  else sprintf("%s protein lollipop", gene),
-      subtitle = sprintf("%g aa | height = CADD (dashed = %g) | colour = ClinVar | size = #samples",
-                         prot_len, threshold),
+      subtitle = sprintf("%g aa | height = CADD (dashed = %g) | colour = ClinVar%s",
+                         prot_len, threshold,
+                         if (single_sample) "" else " | size = #samples"),
       x = "Amino-acid position", y = "CADD") +
     theme_app()
 
