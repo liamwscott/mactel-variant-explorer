@@ -375,7 +375,8 @@ aa_position <- function(hgvsp) {
 #'              gene with an HTML tag after conversion instead).
 plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
                                   label_all = FALSE, italic_gene = FALSE,
-                                  threshold = 20) {
+                                  threshold = 20, novel_keys = character(0),
+                                  mark_novel = FALSE) {
   v <- gene_df %>%
     dplyr::mutate(
       aa  = aa_position(HGVSp_short),
@@ -393,6 +394,12 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
       "%s\nposition %d\nCADD %.1f\nClinVar: %s\nsamples: %d",
       ifelse(is.na(HGVSp_short), "(no HGVSp)", HGVSp_short),
       aa, CADD, as.character(CLNSIG_clean), n_carriers))
+
+  # Variants flagged "novel for MacTel" are drawn as triangles when the toggle
+  # is on. novel_keys use the CHROM||POS||REF||ALT form; vv$key is the
+  # space-separated plotly click key, so match on the space form.
+  vv$is_novel <- vv$key %in% gsub("||", " ", novel_keys, fixed = TRUE)
+  show_novel   <- isTRUE(mark_novel) && any(vv$is_novel)
 
   # When every variant is seen in exactly one sample the size channel carries
   # no information, so drop it (fixed dot size, no "Samples" legend).
@@ -422,25 +429,43 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
       ggplot2::scale_fill_brewer(palette = "Set2", name = "Pfam domain")
   }
 
+  # Point aesthetic: colour is always ClinVar; size is carriers unless every
+  # variant is a singleton; shape splits known vs novel only when marking novel.
+  point_aes <- if (single_sample) {
+    if (show_novel)
+      ggplot2::aes(x = aa, y = CADD, colour = CLNSIG_clean, shape = is_novel,
+                   text = tooltip, key = key)
+    else
+      ggplot2::aes(x = aa, y = CADD, colour = CLNSIG_clean,
+                   text = tooltip, key = key)
+  } else {
+    if (show_novel)
+      ggplot2::aes(x = aa, y = CADD, colour = CLNSIG_clean, size = n_carriers,
+                   shape = is_novel, text = tooltip, key = key)
+    else
+      ggplot2::aes(x = aa, y = CADD, colour = CLNSIG_clean, size = n_carriers,
+                   text = tooltip, key = key)
+  }
+
   p <- p +
     # stems + heads
     ggplot2::geom_segment(data = vv,
                           ggplot2::aes(x = aa, xend = aa, y = 0, yend = CADD),
                           colour = "grey70", linewidth = 0.5) +
     (if (single_sample)
-       ggplot2::geom_point(data = vv,
-                           ggplot2::aes(x = aa, y = CADD, colour = CLNSIG_clean,
-                                        text = tooltip, key = key), size = 4)
+       ggplot2::geom_point(data = vv, point_aes, size = 4)
      else
-       ggplot2::geom_point(data = vv,
-                           ggplot2::aes(x = aa, y = CADD, colour = CLNSIG_clean,
-                                        size = n_carriers,
-                                        text = tooltip, key = key))) +
+       ggplot2::geom_point(data = vv, point_aes)) +
     ggplot2::scale_colour_manual(values = COL_CLNSIG, drop = TRUE,
                                  name = "ClinVar") +
     (if (!single_sample)
        ggplot2::scale_size_continuous(range = c(2.5, 7), name = "Samples",
                                       breaks = scales::breaks_pretty(4))) +
+    (if (show_novel)
+       ggplot2::scale_shape_manual(
+         values = c("FALSE" = 16, "TRUE" = 17),
+         labels = c("FALSE" = "Known", "TRUE" = "Novel for MacTel"),
+         name = "MacTel")) +
     ggplot2::geom_hline(yintercept = threshold, linetype = "dashed",
                         colour = "red", linewidth = 0.6)
 
@@ -497,9 +522,10 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
       title    = if (isTRUE(italic_gene))
                    bquote(italic(.(gene)) * " protein lollipop")
                  else sprintf("%s protein lollipop", gene),
-      subtitle = sprintf("%g aa | height = CADD (dashed = %g) | colour = ClinVar%s",
+      subtitle = sprintf("%g aa | height = CADD (dashed = %g) | colour = ClinVar%s%s",
                          prot_len, threshold,
-                         if (single_sample) "" else " | size = #samples"),
+                         if (single_sample) "" else " | size = #samples",
+                         if (show_novel) " | triangle = novel for MacTel" else ""),
       x = "Amino-acid position", y = "CADD") +
     theme_app()
 

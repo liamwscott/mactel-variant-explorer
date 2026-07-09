@@ -43,3 +43,7 @@ Thumbs.db
 
 # saved filter presets (may embed real sample IDs; kept local, never committed)
 app/data/.saved_filters.json
+
+# manual annotations: novel flags + variant/sample notes (embed real sample IDs
+# and free-text notes about real individuals; kept local, never committed)
+app/data/.annotations.json

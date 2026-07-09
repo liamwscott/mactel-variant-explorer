@@ -43,6 +43,11 @@ startup_path    <- if (file.exists(DEFAULT_REAL)) DEFAULT_REAL else DEFAULT_EXAM
 # codes can embed real sample IDs via the exclude-samples filter.
 SAVED_FILTERS_PATH <- file.path(app_dir, "data", ".saved_filters.json")
 
+# On-disk store for manual curation: per-variant novel flag + notes and
+# per-sample notes. Kept local (gitignored) because it embeds real sample IDs
+# and free-text notes about real individuals.
+ANNOTATIONS_PATH <- file.path(app_dir, "data", ".annotations.json")
+
 # DEBUG mode -----------------------------------------------------------------
 # When OFF (the default) the app starts with NO variant file loaded — the user
 # must explicitly upload/select their own Cavalier CSV. This guards against
@@ -988,6 +993,61 @@ ui <- function(request) page_sidebar(
         uiOutput("family_header"),
         uiOutput("family_body")
       )
+    ),
+
+    nav_panel(
+      "Notes & annotations",
+      icon = bsicons::bs_icon("journal-text"),
+      div(
+        tags$p(class = "text-muted small mt-2",
+               bsicons::bs_icon("info-circle"),
+               " Manually annotate the loaded data. Saved to a local file and ",
+               "re-read automatically next time (like saved filters). Novel ",
+               "variants get a badge on the variant page and in tables, and can ",
+               "be shown as triangles on the protein lollipop."),
+        layout_columns(
+          col_widths = c(6, 6),
+          card(
+            card_header(bsicons::bs_icon("clipboard2-pulse"), " Variant annotation"),
+            selectizeInput(
+              "anno_variant_pick", "Variant", width = "100%",
+              choices = NULL, multiple = FALSE,
+              options = list(
+                placeholder = "Start typing a gene, HGVSp or position…")),
+            checkboxInput("anno_variant_novel",
+                          "Novel for MacTel (not previously reported)", FALSE),
+            textAreaInput(
+              "anno_variant_note",
+              "Note (shown on the variant landing page)",
+              width = "100%", height = "120px",
+              placeholder = "Free-text note for this variant…"),
+            div(class = "d-flex align-items-center gap-2",
+                actionButton(
+                  "anno_variant_save",
+                  tagList(bsicons::bs_icon("save"), " Save variant annotation"),
+                  class = "btn btn-primary"),
+                uiOutput("anno_variant_status", inline = TRUE))
+          ),
+          card(
+            card_header(bsicons::bs_icon("person"), " Sample note"),
+            selectizeInput(
+              "anno_sample_pick", "Sample", width = "100%",
+              choices = NULL, multiple = FALSE,
+              options = list(placeholder = "Start typing a sample ID…")),
+            textAreaInput(
+              "anno_sample_note",
+              "Note (shown in the sample explorer)",
+              width = "100%", height = "120px",
+              placeholder = "Free-text note for this sample…"),
+            div(class = "d-flex align-items-center gap-2",
+                actionButton(
+                  "anno_sample_save",
+                  tagList(bsicons::bs_icon("save"), " Save sample note"),
+                  class = "btn btn-primary"),
+                uiOutput("anno_sample_status", inline = TRUE))
+          )
+        )
+      )
     )
   )
 )
@@ -1221,6 +1281,13 @@ server <- function(input, output, session) {
                          choices = stats::setNames(fids, fmt_sample(fids)),
                          selected = isolate(input$exclude_samples) %||% character(0),
                          server = TRUE)
+    # Annotation-tab pickers: searchable variant + sample dropdowns built from
+    # the loaded data. Variant value is the CHROM||POS||REF||ALT annotation key.
+    updateSelectizeInput(session, "anno_variant_pick",
+                         choices = variant_choices(df), server = TRUE)
+    updateSelectizeInput(session, "anno_sample_pick",
+                         choices = stats::setNames(fids, fmt_sample(fids)),
+                         server = TRUE)
     mx <- ceiling(max(df$CADD, na.rm = TRUE))
     updateSliderInput(session, "cadd", max = mx, value = 0)
     updateSliderInput(session, "priority_cadd", max = mx)
@@ -1239,6 +1306,10 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "exclude_samples",
                          choices = stats::setNames(fids, fmt_sample(fids)),
                          selected = isolate(input$exclude_samples) %||% character(0),
+                         server = TRUE)
+    updateSelectizeInput(session, "anno_sample_pick",
+                         choices = stats::setNames(fids, fmt_sample(fids)),
+                         selected = isolate(input$anno_sample_pick) %||% "",
                          server = TRUE)
   }, ignoreInit = TRUE)
 
@@ -1601,9 +1672,29 @@ server <- function(input, output, session) {
   link_variant <- function(chrom, pos, ref, alt, input_id = "cell_variant") {
     label <- sprintf("%s:%s %s>%s", chrom, pos, ref, alt)
     key   <- sprintf("%s||%s||%s||%s", chrom, pos, ref, alt)
-    sprintf(
+    link  <- sprintf(
       "<a href='#' onclick=\"Shiny.setInputValue('%s','%s',{priority:'event'});return false;\">%s</a>",
       input_id, .jsesc(key), label)
+    # Append a "Novel" pill for variants manually flagged novel for MacTel.
+    # Reading novel_keys() makes every table cell re-render on annotation save.
+    badge <- ifelse(key %in% novel_keys(),
+                    " <span class='badge bg-warning text-dark'>Novel</span>", "")
+    paste0(link, badge)
+  }
+  # Searchable-dropdown choices for the annotation tab: one entry per distinct
+  # variant, value = CHROM||POS||REF||ALT (the annotation key), label =
+  # "GENE  HGVSp — CHROM:POS REF>ALT". Sorted by gene then position.
+  variant_choices <- function(df) {
+    vdf <- df %>%
+      dplyr::distinct(CHROM, POS, REF, ALT, .keep_all = TRUE) %>%
+      dplyr::arrange(SYMBOL, POS)
+    if (nrow(vdf) == 0) return(character(0))
+    key <- sprintf("%s||%s||%s||%s", vdf$CHROM, vdf$POS, vdf$REF, vdf$ALT)
+    hgvsp <- ifelse(is.na(vdf$HGVSp_short) | vdf$HGVSp_short == "",
+                    "(no HGVSp)", vdf$HGVSp_short)
+    lab <- sprintf("%s  %s — %s:%s %s>%s", vdf$SYMBOL, hgvsp,
+                   vdf$CHROM, vdf$POS, vdf$REF, vdf$ALT)
+    stats::setNames(key, lab)
   }
   # Clickable teal Family badge (HTML string, for DT cells) -> Family explorer.
   link_family <- function(fam) sprintf(
@@ -2208,11 +2299,23 @@ server <- function(input, output, session) {
         fam_badge)
     }
 
+    # Curator note for this sample (from the Notes tab), shown as a callout.
+    sa <- sample_anno(input$sample_pick)
+    note_box <- if (!is.null(sa$note) && nzchar(sa$note))
+      div(class = "alert alert-info py-2 px-3 mb-2",
+          tags$span(bsicons::bs_icon("journal-text"), class = "me-1"),
+          tags$span(class = "fw-semibold me-1", "Note:"),
+          tags$span(sa$note),
+          if (!is.null(sa$updated))
+            tags$span(class = "text-muted small ms-2",
+                      sprintf("(%s)", sa$updated)))
+
     tagList(
       id_line,
       div(class = "mb-2",
           tags$span("Tags: ", class = "text-muted small me-1"),
-          diag_badge, group_badges)
+          diag_badge, group_badges),
+      note_box
     )
   })
 
@@ -2378,6 +2481,139 @@ server <- function(input, output, session) {
     vapply(presets, function(p) p$name %||% "", character(1))
   preset_index <- function(presets, nm)
     which(vapply(presets, function(p) identical(p$name, nm), logical(1)))
+
+  # ---- manual annotations (novel flag + notes) ------------------------------
+  # Same atomic-write / auto-read pattern as saved filters. The store has two
+  # named sections: `variants` (keyed by CHROM||POS||REF||ALT) and `samples`
+  # (keyed by family_id). Each entry is a list with optional `novel` (variants
+  # only), `note` and `updated` (ISO date) fields.
+  read_annotations <- function() {
+    empty <- list(variants = list(), samples = list())
+    if (!file.exists(ANNOTATIONS_PATH)) return(empty)
+    out <- tryCatch(
+      jsonlite::fromJSON(ANNOTATIONS_PATH, simplifyDataFrame = FALSE),
+      error = function(e) NULL)
+    if (is.null(out) || !is.list(out)) return(empty)
+    if (is.null(out$variants)) out$variants <- list()
+    if (is.null(out$samples))  out$samples  <- list()
+    out
+  }
+  write_annotations <- function(a) {
+    tryCatch({
+      tmp <- tempfile(tmpdir = dirname(ANNOTATIONS_PATH), fileext = ".json")
+      writeLines(jsonlite::toJSON(a, auto_unbox = TRUE, pretty = TRUE), tmp)
+      file.rename(tmp, ANNOTATIONS_PATH)
+      TRUE
+    }, error = function(e) FALSE)
+  }
+  annotations_rv <- reactiveVal(read_annotations())
+
+  # Derived accessors. novel_keys() is reactive (drives live badge/triangle
+  # refresh); the *_anno helpers take the current store explicitly so they can
+  # be called from any reactive context.
+  novel_keys <- reactive({
+    v <- annotations_rv()$variants
+    if (length(v) == 0) return(character(0))
+    keep <- vapply(v, function(x) isTRUE(x$novel), logical(1))
+    names(v)[keep]
+  })
+  variant_anno <- function(key) annotations_rv()$variants[[key]]
+  sample_anno  <- function(fid) annotations_rv()$samples[[as.character(fid)]]
+
+  # Prefill the variant form when a variant is picked, from any stored entry.
+  observeEvent(input$anno_variant_pick, {
+    a <- variant_anno(input$anno_variant_pick)
+    updateCheckboxInput(session, "anno_variant_novel",
+                        value = isTRUE(a$novel))
+    updateTextAreaInput(session, "anno_variant_note",
+                        value = a$note %||% "")
+  }, ignoreInit = TRUE)
+
+  # Prefill the sample form when a sample is picked.
+  observeEvent(input$anno_sample_pick, {
+    a <- sample_anno(input$anno_sample_pick)
+    updateTextAreaInput(session, "anno_sample_note", value = a$note %||% "")
+  }, ignoreInit = TRUE)
+
+  # A small "saved / last updated" status line under each Save button.
+  anno_saved_at <- reactiveValues(variant = NULL, sample = NULL)
+  status_line <- function(msg) tags$span(class = "text-success small",
+    bsicons::bs_icon("check-circle"), paste0(" ", msg))
+  output$anno_variant_status <- renderUI({
+    if (!is.null(anno_saved_at$variant)) status_line(anno_saved_at$variant)
+    else {
+      a <- variant_anno(input$anno_variant_pick %||% "")
+      if (!is.null(a$updated))
+        tags$span(class = "text-muted small",
+                  sprintf("Last saved %s", a$updated))
+    }
+  })
+  output$anno_sample_status <- renderUI({
+    if (!is.null(anno_saved_at$sample)) status_line(anno_saved_at$sample)
+    else {
+      a <- sample_anno(input$anno_sample_pick %||% "")
+      if (!is.null(a$updated))
+        tags$span(class = "text-muted small",
+                  sprintf("Last saved %s", a$updated))
+    }
+  })
+
+  # Save the variant annotation (novel flag + note). An entry with neither a
+  # novel flag nor a note is removed, so clearing both deletes the record.
+  observeEvent(input$anno_variant_save, {
+    key <- input$anno_variant_pick
+    if (is.null(key) || key == "") {
+      showNotification("Pick a variant first.", type = "warning")
+      return()
+    }
+    a    <- annotations_rv()
+    note <- trimws(input$anno_variant_note %||% "")
+    novel <- isTRUE(input$anno_variant_novel)
+    if (!novel && note == "") {
+      a$variants[[key]] <- NULL
+    } else {
+      a$variants[[key]] <- list(novel = novel, note = note,
+                                updated = as.character(Sys.Date()))
+    }
+    if (write_annotations(a)) {
+      annotations_rv(a)
+      anno_saved_at$variant <- "Saved."
+      showNotification("Variant annotation saved.", type = "message")
+    } else {
+      showNotification("Could not write the annotations file.", type = "error")
+    }
+  })
+
+  # Save the sample note. An empty note removes the record.
+  observeEvent(input$anno_sample_save, {
+    fid <- input$anno_sample_pick
+    if (is.null(fid) || fid == "") {
+      showNotification("Pick a sample first.", type = "warning")
+      return()
+    }
+    a    <- annotations_rv()
+    note <- trimws(input$anno_sample_note %||% "")
+    if (note == "") {
+      a$samples[[as.character(fid)]] <- NULL
+    } else {
+      a$samples[[as.character(fid)]] <- list(note = note,
+                                             updated = as.character(Sys.Date()))
+    }
+    if (write_annotations(a)) {
+      annotations_rv(a)
+      anno_saved_at$sample <- "Saved."
+      showNotification("Sample note saved.", type = "message")
+    } else {
+      showNotification("Could not write the annotations file.", type = "error")
+    }
+  })
+
+  # Clear the transient "Saved." flash as soon as the user edits again.
+  observeEvent(list(input$anno_variant_pick, input$anno_variant_note,
+                    input$anno_variant_novel),
+               { anno_saved_at$variant <- NULL }, ignoreInit = TRUE)
+  observeEvent(list(input$anno_sample_pick, input$anno_sample_note),
+               { anno_saved_at$sample <- NULL }, ignoreInit = TRUE)
 
   # Build (and re-show) the share/save dialog. Re-showing after a save or delete
   # keeps the saved-filters dropdown in sync without partial UI updates.
@@ -2586,9 +2822,27 @@ server <- function(input, output, session) {
         fld("Inheritance", row$inheritance),
         spliceai_breakdown
       ),
+      variant_anno_block(sprintf("%s||%s||%s||%s",
+                                 row$CHROM, row$POS, row$REF, row$ALT)),
       tags$hr()
     )
   })
+
+  # Curator annotation shown on the variant landing page: a "Novel for MacTel"
+  # pill and/or the free-text note. NULL when the variant has neither, so the
+  # block only appears once something has been recorded on the Notes tab.
+  variant_anno_block <- function(key) {
+    a <- variant_anno(key)
+    if (is.null(a)) return(NULL)
+    novel_pill <- if (isTRUE(a$novel))
+      tags$span("Novel for MacTel", class = "badge bg-warning text-dark me-2")
+    note_p <- if (!is.null(a$note) && nzchar(a$note))
+      tags$div(class = "mt-1",
+               tags$span(class = "text-muted small", "Curator note: "),
+               tags$span(a$note))
+    if (is.null(novel_pill) && is.null(note_p)) return(NULL)
+    tags$div(class = "mt-1 mb-1", novel_pill, note_p)
+  }
 
   # Action / external-resource buttons shown with the active variant:
   #  * "View all variants" clears the selected variant and returns to the
@@ -2810,7 +3064,10 @@ server <- function(input, output, session) {
         DT::DTOutput("gene_variant_table")
       ),
       plotly::plotlyOutput("lollipop", height = 430),
-      div(class = "d-flex justify-content-end mt-1",
+      div(class = "d-flex justify-content-between align-items-center mt-1",
+          div(class = "mb-0",
+              checkboxInput("lollipop_novel_shape",
+                            "Show novel variants as triangles", value = FALSE)),
           downloadButton("dl_lollipop", "Download plot (PNG)",
                          class = "btn-sm btn-outline-secondary",
                          icon = bsicons::bs_icon("image"))),
@@ -2913,7 +3170,9 @@ server <- function(input, output, session) {
     p <- tryCatch(plot_variant_lollipop(gdf, ddf, gene, sel_key,
                                         label_all = !has_row,
                                         italic_gene = TRUE,
-                                        threshold = input$priority_cadd %||% 20),
+                                        threshold = input$priority_cadd %||% 20,
+                                        novel_keys = novel_keys(),
+                                        mark_novel = isTRUE(input$lollipop_novel_shape)),
                   error = function(e) NULL)
     plot_html <- "<p class='muted'>No protein-coding positions to plot for this gene.</p>"
     if (!is.null(p)) {
@@ -2928,8 +3187,10 @@ server <- function(input, output, session) {
         ggplot2::guides(
           colour = ggplot2::guide_legend(order = 1, nrow = 2, byrow = TRUE,
                                          override.aes = list(size = 3.5)),
-          size   = ggplot2::guide_legend(order = 2, nrow = 1),
-          fill   = ggplot2::guide_legend(order = 3, ncol = 1))
+          shape  = ggplot2::guide_legend(order = 2, nrow = 1,
+                                         override.aes = list(size = 3.5)),
+          size   = ggplot2::guide_legend(order = 3, nrow = 1),
+          fill   = ggplot2::guide_legend(order = 4, ncol = 1))
       tmp <- tempfile(fileext = ".png")
       ok <- tryCatch({
         ggplot2::ggsave(tmp, p_png, width = 9, height = 5.6, dpi = 130, bg = "white")
@@ -3136,7 +3397,9 @@ server <- function(input, output, session) {
     sel_key <- if (!is.null(row) && nrow(row) > 0)
       paste(row$CHROM, row$POS, row$REF, row$ALT) else NULL
     p <- plot_variant_lollipop(gdf, ddf, gene, sel_key,
-                               threshold = input$priority_cadd %||% 20)
+                               threshold = input$priority_cadd %||% 20,
+                               novel_keys = novel_keys(),
+                               mark_novel = isTRUE(input$lollipop_novel_shape))
     validate(need(!is.null(p),
                   "No protein-coding (amino-acid) positions to plot for this gene."))
     gg <- plotly::ggplotly(p, tooltip = "text", source = "lollipop") %>%
@@ -3185,7 +3448,9 @@ server <- function(input, output, session) {
       p <- tryCatch(plot_variant_lollipop(gdf, ddf, gene, sel_key,
                                           label_all = TRUE,
                                           italic_gene = TRUE,
-                                          threshold = input$priority_cadd %||% 20),
+                                          threshold = input$priority_cadd %||% 20,
+                                          novel_keys = novel_keys(),
+                                          mark_novel = isTRUE(input$lollipop_novel_shape)),
                     error = function(e) NULL)
       req(!is.null(p))
       # Wrap long domain names so the legend grows in height, not width (keeps
@@ -3204,8 +3469,10 @@ server <- function(input, output, session) {
         ggplot2::guides(
           colour = ggplot2::guide_legend(order = 1, ncol = 1,
                                          override.aes = list(size = 3.5)),
-          size   = ggplot2::guide_legend(order = 2, ncol = 1),
-          fill   = ggplot2::guide_legend(order = 3, ncol = 1))
+          shape  = ggplot2::guide_legend(order = 2, ncol = 1,
+                                         override.aes = list(size = 3.5)),
+          size   = ggplot2::guide_legend(order = 3, ncol = 1),
+          fill   = ggplot2::guide_legend(order = 4, ncol = 1))
       g  <- set_panel_size(p, LOLLI_PANEL_W, LOLLI_PANEL_H)
       sz <- grob_size_in(g)
       grDevices::png(file, width = sz[1], height = sz[2], units = "in",
