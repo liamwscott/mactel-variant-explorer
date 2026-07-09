@@ -3139,8 +3139,8 @@ server <- function(input, output, session) {
 
   # Static PNG of the protein lollipop for the gene currently in the modal.
   # Every position is labelled (as in the gene report) so the image stands
-  # alone without the interactive hover, and the legend sits below the plot so
-  # the lollipop uses the full width.
+  # alone without the interactive hover, and the legend sits to the right of
+  # the plot.
   output$dl_lollipop <- downloadHandler(
     filename = function() sprintf("%s_lollipop_%s.png",
                                   modal_gene() %||% "gene", Sys.Date()),
@@ -3160,16 +3160,16 @@ server <- function(input, output, session) {
       req(!is.null(p))
       p <- p +
         ggplot2::theme(
-          legend.position = "bottom",
+          legend.position = "right",
           legend.box      = "vertical",
           legend.title    = ggplot2::element_text(size = 9),
           legend.text     = ggplot2::element_text(size = 8)) +
         ggplot2::guides(
-          colour = ggplot2::guide_legend(order = 1, nrow = 2, byrow = TRUE,
+          colour = ggplot2::guide_legend(order = 1, ncol = 1,
                                          override.aes = list(size = 3.5)),
-          size   = ggplot2::guide_legend(order = 2, nrow = 1),
+          size   = ggplot2::guide_legend(order = 2, ncol = 1),
           fill   = ggplot2::guide_legend(order = 3, ncol = 1))
-      ggplot2::ggsave(file, p, device = "png", width = 11, height = 6.4,
+      ggplot2::ggsave(file, p, device = "png", width = 12, height = 6,
                       dpi = 200, bg = "white")
     }
   )
