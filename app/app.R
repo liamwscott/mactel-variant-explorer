@@ -181,6 +181,29 @@ write_variants_xlsx <- function(df, file, sheet = "Variants") {
   openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
 }
 
+# Force a ggplot's plotting panel to an absolute physical size and return the
+# resulting gtable, so a figure's panel is identical across renders regardless
+# of how much room the legend/axes need (the classic egg::set_panel_size
+# idiom). Total figure size is then the panel plus whatever the legend, axes
+# and title occupy, so save at grob_size_in()'s dimensions. Used to keep the
+# downloaded protein window comparable between genes.
+set_panel_size <- function(p, width, height) {
+  g       <- ggplot2::ggplotGrob(p)
+  panels  <- grepl("^panel", g$layout$name)
+  cols    <- unique(g$layout$l[panels])
+  rows    <- unique(g$layout$t[panels])
+  g$widths[cols]  <- rep(width,  length(cols))
+  g$heights[rows] <- rep(height, length(rows))
+  g
+}
+
+# Total size (inches) of a fully-absolute gtable, e.g. one returned by
+# set_panel_size(): every width/height is now a fixed unit, so it converts.
+grob_size_in <- function(g) {
+  c(grid::convertWidth(sum(g$widths),   "in", valueOnly = TRUE),
+    grid::convertHeight(sum(g$heights), "in", valueOnly = TRUE))
+}
+
 # Family grouping (from the manifest's Family_ID column, derived from the
 # clinical pedigree). FAMILY_OF maps an individual family_id -> its Family_ID;
 # FAMILY_MEMBERS maps a Family_ID -> the vector of member family_ids. Only
@@ -3139,8 +3162,15 @@ server <- function(input, output, session) {
 
   # Static PNG of the protein lollipop for the gene currently in the modal.
   # Every position is labelled (as in the gene report) so the image stands
-  # alone without the interactive hover, and the legend sits to the right of
-  # the plot.
+  # alone without the interactive hover, and the legend sits to the right.
+  #
+  # The plotting panel (the protein window) is pinned to a fixed physical size
+  # so it is directly comparable between genes; the total canvas then grows to
+  # fit whatever the legend needs. Long Pfam-domain names wrap onto multiple
+  # lines rather than widening the legend, so the panel — and the overall
+  # figure — stay a consistent size across genes.
+  LOLLI_PANEL_W <- grid::unit(8.5, "in")
+  LOLLI_PANEL_H <- grid::unit(4.3, "in")
   output$dl_lollipop <- downloadHandler(
     filename = function() sprintf("%s_lollipop_%s.png",
                                   modal_gene() %||% "gene", Sys.Date()),
@@ -3158,6 +3188,13 @@ server <- function(input, output, session) {
                                           threshold = input$priority_cadd %||% 20),
                     error = function(e) NULL)
       req(!is.null(p))
+      # Wrap long domain names so the legend grows in height, not width (keeps
+      # the panel and canvas comparable across genes). Re-stating the Set2
+      # palette here matches plot_variant_lollipop().
+      suppressMessages(
+        p <- p + ggplot2::scale_fill_brewer(
+          palette = "Set2", name = "Pfam domain",
+          labels = function(x) stringr::str_wrap(x, 24)))
       p <- p +
         ggplot2::theme(
           legend.position = "right",
@@ -3169,8 +3206,12 @@ server <- function(input, output, session) {
                                          override.aes = list(size = 3.5)),
           size   = ggplot2::guide_legend(order = 2, ncol = 1),
           fill   = ggplot2::guide_legend(order = 3, ncol = 1))
-      ggplot2::ggsave(file, p, device = "png", width = 12, height = 6,
-                      dpi = 200, bg = "white")
+      g  <- set_panel_size(p, LOLLI_PANEL_W, LOLLI_PANEL_H)
+      sz <- grob_size_in(g)
+      grDevices::png(file, width = sz[1], height = sz[2], units = "in",
+                     res = 200, bg = "white")
+      on.exit(grDevices::dev.off(), add = TRUE)
+      grid::grid.newpage(); grid::grid.draw(g)
     }
   )
 
