@@ -3067,7 +3067,7 @@ server <- function(input, output, session) {
       div(class = "d-flex justify-content-between align-items-center mt-1",
           div(class = "mb-0",
               checkboxInput("lollipop_novel_shape",
-                            "Show novel variants as triangles", value = FALSE)),
+                            "Show novel variants as triangles", value = TRUE)),
           downloadButton("dl_lollipop", "Download plot (PNG)",
                          class = "btn-sm btn-outline-secondary",
                          icon = bsicons::bs_icon("image"))),
@@ -3172,7 +3172,7 @@ server <- function(input, output, session) {
                                         italic_gene = TRUE,
                                         threshold = input$priority_cadd %||% 20,
                                         novel_keys = novel_keys(),
-                                        mark_novel = isTRUE(input$lollipop_novel_shape)),
+                                        mark_novel = isTRUE(input$lollipop_novel_shape %||% TRUE)),
                   error = function(e) NULL)
     plot_html <- "<p class='muted'>No protein-coding positions to plot for this gene.</p>"
     if (!is.null(p)) {
@@ -3399,7 +3399,7 @@ server <- function(input, output, session) {
     p <- plot_variant_lollipop(gdf, ddf, gene, sel_key,
                                threshold = input$priority_cadd %||% 20,
                                novel_keys = novel_keys(),
-                               mark_novel = isTRUE(input$lollipop_novel_shape))
+                               mark_novel = isTRUE(input$lollipop_novel_shape %||% TRUE))
     validate(need(!is.null(p),
                   "No protein-coding (amino-acid) positions to plot for this gene."))
     gg <- plotly::ggplotly(p, tooltip = "text", source = "lollipop") %>%
@@ -3450,7 +3450,7 @@ server <- function(input, output, session) {
                                           italic_gene = TRUE,
                                           threshold = input$priority_cadd %||% 20,
                                           novel_keys = novel_keys(),
-                                          mark_novel = isTRUE(input$lollipop_novel_shape)),
+                                          mark_novel = isTRUE(input$lollipop_novel_shape %||% TRUE)),
                     error = function(e) NULL)
       req(!is.null(p))
       # Wrap long domain names so the legend grows in height, not width (keeps
