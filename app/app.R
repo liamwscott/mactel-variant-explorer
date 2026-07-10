@@ -255,22 +255,21 @@ tidy_lollipop_legend <- function(gg) {
     strsplit(inner, ",", fixed = TRUE)[[1]][1]
   }
 
-  # Pass 1: hide every auto legend entry; pick one representative point trace
-  # per ClinVar level (prefer the circle so the swatch reads as a plain dot);
-  # keep the domain fills, titled once.
-  reps <- list(); any_novel <- FALSE; any_known <- FALSE; first_dom <- TRUE
+  # Pass 1: hide every auto point legend; record each ClinVar level's colour
+  # (first-seen order) so the ClinVar swatches can be drawn as plain circles
+  # regardless of whether that level only has novel (triangle) variants. Keep
+  # the domain fills as real, toggleable traces, titled once.
+  clin_cols <- list(); any_novel <- FALSE; any_known <- FALSE; first_dom <- TRUE
   for (i in seq_along(d)) {
     t <- d[[i]]
     if (is_point(t)) {
       clin <- clin_of(t$name); sym <- t$marker$symbol
       d[[i]]$showlegend <- FALSE
-      # Skip nameless point traces (e.g. the selected-variant ring); indexing
-      # reps with "" would error and they carry no ClinVar level anyway.
+      # Skip nameless point traces (e.g. the selected-variant ring).
       if (nzchar(clin)) {
         if (any(sym == "circle"))      any_known <- TRUE
         if (any(sym == "triangle-up")) any_novel <- TRUE
-        d[[i]]$legendgroup <- paste0("clin::", clin)
-        if (is.null(reps[[clin]]) || any(sym == "circle")) reps[[clin]] <- i
+        if (is.null(clin_cols[[clin]])) clin_cols[[clin]] <- t$marker$color[1]
       }
     } else if (is_domain(t)) {
       nm <- sub("^\\(", "", t$name %||% "")
@@ -282,27 +281,33 @@ tidy_lollipop_legend <- function(gg) {
       d[[i]]$showlegend <- FALSE
     }
   }
-  # Pass 2: reveal the chosen ClinVar reps under a single titled group.
-  first_clin <- TRUE
-  for (clin in names(reps)) {
-    i <- reps[[clin]]
-    d[[i]]$showlegend <- TRUE; d[[i]]$name <- clin
-    if (first_clin) { d[[i]]$legendgrouptitle <- list(text = "ClinVar"); first_clin <- FALSE }
+
+  # Legend-only swatches. ClinVar is colour-only, so always draw circles; the
+  # novelty group is shape-only, so always draw black shapes.
+  swatch <- function(colour, symbol, name, group, title) list(
+    x = list(NA), y = list(NA), type = "scatter", mode = "markers",
+    marker = list(color = colour, symbol = symbol, size = 9),
+    name = name, legendgroup = group, showlegend = TRUE, hoverinfo = "skip",
+    legendgrouptitle = if (!is.null(title)) list(text = title) else NULL)
+  extra <- list(); first_clin <- TRUE
+  for (clin in names(clin_cols)) {
+    extra <- c(extra, list(swatch(clin_cols[[clin]], "circle", clin,
+                                  paste0("clin::", clin),
+                                  if (first_clin) "ClinVar" else NULL)))
+    first_clin <- FALSE
   }
-  b$x$data <- d
-  # Novelty shapes get their own black, shape-only group.
   if (any_novel) {
-    mk <- function(sym, name, title) list(
-      x = list(NA), y = list(NA), type = "scatter", mode = "markers",
-      marker = list(color = "black", symbol = sym, size = 9),
-      name = name, legendgroup = paste0("novel::", sym),
-      showlegend = TRUE, hoverinfo = "skip",
-      legendgrouptitle = if (title) list(text = "Novel for MacTel") else NULL)
-    extra <- list()
-    if (any_known) extra <- c(extra, list(mk("circle", "Known", TRUE)))
-    extra <- c(extra, list(mk("triangle-up", "Novel", !any_known)))
-    b$x$data <- c(b$x$data, extra)
+    if (any_known)
+      extra <- c(extra, list(swatch("black", "circle", "Known",
+                                    "novel::circle", "Novel for MacTel")))
+    extra <- c(extra, list(swatch("black", "triangle-up", "Novel",
+                                  "novel::triangle-up",
+                                  if (any_known) NULL else "Novel for MacTel")))
   }
+  b$x$data <- c(d, extra)
+
+  # No overall legend title — the group subtitles already label each section.
+  b$x$layout$legend$title <- list(text = "")
   b
 }
 
