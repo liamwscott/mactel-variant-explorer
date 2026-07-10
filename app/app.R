@@ -209,6 +209,70 @@ grob_size_in <- function(g) {
     grid::convertHeight(sum(g$heights), "in", valueOnly = TRUE))
 }
 
+# ggplotly makes one trace per colour x shape combination, so an interactive
+# lollipop legend lists every ClinVar x novelty pairing (and buries the domains
+# in the same list). Collapse the built plotly legend into three clean, titled
+# groups: Pfam domain (fill), ClinVar (colour) and Novel for MacTel (shape).
+# Only the legend display is changed — point data, tooltips and click keys are
+# untouched. Returns the built plotly object; falls back to the input on error.
+tidy_lollipop_legend <- function(gg) {
+  b <- tryCatch(plotly::plotly_build(gg), error = function(e) NULL)
+  if (is.null(b)) return(gg)
+  d <- b$x$data
+  is_point  <- function(t) !is.null(t$marker$symbol) &&
+    any(t$marker$symbol %in% c("circle", "triangle-up"))
+  is_domain <- function(t) !is_point(t) && !is.null(t$fillcolor)
+  # ClinVar level = first comma-token of the "(level,novel,..)" trace name
+  # (ClinVar levels never contain commas, unlike Pfam domain names).
+  clin_of <- function(nm) sub("^\\(([^,]*),.*$", "\\1", nm %||% "")
+
+  # Pass 1: hide every auto legend entry; pick one representative point trace
+  # per ClinVar level (prefer the circle so the swatch reads as a plain dot);
+  # keep the domain fills, titled once.
+  reps <- list(); any_novel <- FALSE; any_known <- FALSE; first_dom <- TRUE
+  for (i in seq_along(d)) {
+    t <- d[[i]]
+    if (is_point(t)) {
+      clin <- clin_of(t$name); sym <- t$marker$symbol
+      if (any(sym == "circle"))      any_known <- TRUE
+      if (any(sym == "triangle-up")) any_novel <- TRUE
+      d[[i]]$showlegend  <- FALSE
+      d[[i]]$legendgroup <- paste0("clin::", clin)
+      if (is.null(reps[[clin]]) || any(sym == "circle")) reps[[clin]] <- i
+    } else if (is_domain(t)) {
+      nm <- sub("^\\(", "", t$name %||% "")
+      nm <- sub(",[^,]*,NA\\)$", "", nm); nm <- sub("\\)$", "", nm)
+      d[[i]]$name <- nm; d[[i]]$legendgroup <- paste0("dom::", nm)
+      d[[i]]$showlegend <- TRUE
+      if (first_dom) { d[[i]]$legendgrouptitle <- list(text = "Pfam domain"); first_dom <- FALSE }
+    } else {
+      d[[i]]$showlegend <- FALSE
+    }
+  }
+  # Pass 2: reveal the chosen ClinVar reps under a single titled group.
+  first_clin <- TRUE
+  for (clin in names(reps)) {
+    i <- reps[[clin]]
+    d[[i]]$showlegend <- TRUE; d[[i]]$name <- clin
+    if (first_clin) { d[[i]]$legendgrouptitle <- list(text = "ClinVar"); first_clin <- FALSE }
+  }
+  b$x$data <- d
+  # Novelty shapes get their own grey, shape-only group.
+  if (any_novel) {
+    mk <- function(sym, name, title) list(
+      x = list(NA), y = list(NA), type = "scatter", mode = "markers",
+      marker = list(color = "grey40", symbol = sym, size = 9),
+      name = name, legendgroup = paste0("novel::", sym),
+      showlegend = TRUE, hoverinfo = "skip",
+      legendgrouptitle = if (title) list(text = "Novel for MacTel") else NULL)
+    extra <- list()
+    if (any_known) extra <- c(extra, list(mk("circle", "Known", TRUE)))
+    extra <- c(extra, list(mk("triangle-up", "Novel", !any_known)))
+    b$x$data <- c(b$x$data, extra)
+  }
+  b
+}
+
 # Family grouping (from the manifest's Family_ID column, derived from the
 # clinical pedigree). FAMILY_OF maps an individual family_id -> its Family_ID;
 # FAMILY_MEMBERS maps a Family_ID -> the vector of member family_ids. Only
@@ -3420,7 +3484,9 @@ server <- function(input, output, session) {
         bgcolor = "#fff3cd", bordercolor = "#664d03",
         borderwidth = 1, borderpad = 4)))
     }
-    gg
+    # Collapse the ggplotly colour x shape cross-product into three tidy,
+    # titled legend groups (ClinVar / Novel for MacTel / Pfam domain).
+    tidy_lollipop_legend(gg)
   })
 
   # Static PNG of the protein lollipop for the gene currently in the modal.
