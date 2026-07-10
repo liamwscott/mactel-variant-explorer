@@ -290,11 +290,11 @@ tidy_lollipop_legend <- function(gg) {
     if (first_clin) { d[[i]]$legendgrouptitle <- list(text = "ClinVar"); first_clin <- FALSE }
   }
   b$x$data <- d
-  # Novelty shapes get their own grey, shape-only group.
+  # Novelty shapes get their own black, shape-only group.
   if (any_novel) {
     mk <- function(sym, name, title) list(
       x = list(NA), y = list(NA), type = "scatter", mode = "markers",
-      marker = list(color = "grey40", symbol = sym, size = 9),
+      marker = list(color = "black", symbol = sym, size = 9),
       name = name, legendgroup = paste0("novel::", sym),
       showlegend = TRUE, hoverinfo = "skip",
       legendgrouptitle = if (title) list(text = "Novel for MacTel") else NULL)
