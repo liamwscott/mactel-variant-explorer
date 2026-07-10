@@ -2896,7 +2896,17 @@ server <- function(input, output, session) {
                 ds[1], ds[2], ds[3], ds[4]))
     } else NULL
 
+    # Novel-for-MacTel toggle at the top: same effect as ticking Novel on the
+    # Notes tab. Its value tracks the stored flag, and flipping it writes the
+    # annotation immediately (see the observeEvent below).
+    vkey <- sprintf("%s||%s||%s||%s", row$CHROM, row$POS, row$REF, row$ALT)
+    novel_toggle <- tags$div(
+      class = "mb-2",
+      bslib::input_switch("landing_novel", "Novel for MacTel",
+                          value = isTRUE(variant_anno(vkey)$novel)))
+
     tagList(
+      novel_toggle,
       tags$div(
         style = "line-height:1.9;",
         fld("Variant", sprintf("%s:%s %s>%s",
@@ -2916,27 +2926,45 @@ server <- function(input, output, session) {
         fld("Inheritance", row$inheritance),
         spliceai_breakdown
       ),
-      variant_anno_block(sprintf("%s||%s||%s||%s",
-                                 row$CHROM, row$POS, row$REF, row$ALT)),
+      variant_anno_block(vkey),
       tags$hr()
     )
   })
 
-  # Curator annotation shown on the variant landing page: a "Novel for MacTel"
-  # pill and/or the free-text note. NULL when the variant has neither, so the
-  # block only appears once something has been recorded on the Notes tab.
+  # Persist the landing-page novel toggle straight to the annotations store,
+  # keeping any existing note. Guarded so it only writes on a real change (the
+  # detail block re-renders — and so recreates the switch — after each save).
+  observeEvent(input$landing_novel, {
+    row <- modal_variant(); req(row)
+    key <- sprintf("%s||%s||%s||%s", row$CHROM, row$POS, row$REF, row$ALT)
+    a   <- annotations_rv()
+    cur <- isTRUE(a$variants[[key]]$novel)
+    new <- isTRUE(input$landing_novel)
+    if (cur == new) return()
+    note <- a$variants[[key]]$note %||% ""
+    if (!new && !nzchar(note)) {
+      a$variants[[key]] <- NULL           # no flag + no note -> drop the record
+    } else {
+      a$variants[[key]] <- list(novel = new, note = note,
+                                updated = as.character(Sys.Date()))
+    }
+    if (write_annotations(a)) {
+      annotations_rv(a)
+      showNotification(if (new) "Marked novel for MacTel."
+                       else "Novel flag removed.", type = "message")
+    } else {
+      showNotification("Could not write the annotations file.", type = "error")
+    }
+  }, ignoreInit = TRUE)
+
+  # Curator note shown on the variant landing page (novelty is handled by the
+  # toggle at the top). NULL when the variant has no note.
   variant_anno_block <- function(key) {
     a <- variant_anno(key)
-    if (is.null(a)) return(NULL)
-    novel_pill <- if (isTRUE(a$novel))
-      tags$span("Novel for MacTel", class = "badge bg-warning me-2",
-                style = "color:#000;")
-    note_p <- if (!is.null(a$note) && nzchar(a$note))
-      tags$div(class = "mt-1",
-               tags$div(class = "text-muted small", "Curator note"),
-               tags$div(class = "note-body", render_note(a$note)))
-    if (is.null(novel_pill) && is.null(note_p)) return(NULL)
-    tags$div(class = "mt-1 mb-1", novel_pill, note_p)
+    if (is.null(a) || is.null(a$note) || !nzchar(a$note)) return(NULL)
+    tags$div(class = "mt-1 mb-1",
+             tags$div(class = "text-muted small", "Curator note"),
+             tags$div(class = "note-body", render_note(a$note)))
   }
 
   # Action / external-resource buttons shown with the active variant:
