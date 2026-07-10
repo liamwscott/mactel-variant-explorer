@@ -245,8 +245,15 @@ tidy_lollipop_legend <- function(gg) {
     any(t$marker$symbol %in% c("circle", "triangle-up"))
   is_domain <- function(t) !is_point(t) && !is.null(t$fillcolor)
   # ClinVar level = first comma-token of the "(level,novel,..)" trace name
-  # (ClinVar levels never contain commas, unlike Pfam domain names).
-  clin_of <- function(nm) sub("^\\(([^,]*),.*$", "\\1", nm %||% "")
+  # (ClinVar levels never contain commas, unlike Pfam domain names). Returns ""
+  # for a nameless trace such as the selected-variant ring overlay, which must
+  # be left out of the ClinVar grouping.
+  clin_of <- function(nm) {
+    nm <- nm %||% ""
+    if (!nzchar(nm)) return("")
+    inner <- sub("\\)$", "", sub("^\\(", "", nm))
+    strsplit(inner, ",", fixed = TRUE)[[1]][1]
+  }
 
   # Pass 1: hide every auto legend entry; pick one representative point trace
   # per ClinVar level (prefer the circle so the swatch reads as a plain dot);
@@ -256,11 +263,15 @@ tidy_lollipop_legend <- function(gg) {
     t <- d[[i]]
     if (is_point(t)) {
       clin <- clin_of(t$name); sym <- t$marker$symbol
-      if (any(sym == "circle"))      any_known <- TRUE
-      if (any(sym == "triangle-up")) any_novel <- TRUE
-      d[[i]]$showlegend  <- FALSE
-      d[[i]]$legendgroup <- paste0("clin::", clin)
-      if (is.null(reps[[clin]]) || any(sym == "circle")) reps[[clin]] <- i
+      d[[i]]$showlegend <- FALSE
+      # Skip nameless point traces (e.g. the selected-variant ring); indexing
+      # reps with "" would error and they carry no ClinVar level anyway.
+      if (nzchar(clin)) {
+        if (any(sym == "circle"))      any_known <- TRUE
+        if (any(sym == "triangle-up")) any_novel <- TRUE
+        d[[i]]$legendgroup <- paste0("clin::", clin)
+        if (is.null(reps[[clin]]) || any(sym == "circle")) reps[[clin]] <- i
+      }
     } else if (is_domain(t)) {
       nm <- sub("^\\(", "", t$name %||% "")
       nm <- sub(",[^,]*,NA\\)$", "", nm); nm <- sub("\\)$", "", nm)
