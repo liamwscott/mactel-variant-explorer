@@ -209,6 +209,28 @@ grob_size_in <- function(g) {
     grid::convertHeight(sum(g$heights), "in", valueOnly = TRUE))
 }
 
+# Render a curator note (variant or sample) as HTML. Markdown is honoured, so a
+# note can use bullet lists, bold, headings, etc. and the panel respects that
+# formatting. A plain multi-line note (no markup) defaults to a bulleted list so
+# notes read cleanly without the user having to add markup themselves; a single
+# plain line stays a paragraph. Returns NULL for an empty note.
+render_note <- function(txt) {
+  if (is.null(txt)) return(NULL)
+  txt <- trimws(txt)
+  if (!nzchar(txt)) return(NULL)
+  lines    <- trimws(strsplit(txt, "\r?\n")[[1]])
+  nonempty <- lines[nzchar(lines)]
+  # Treat the note as already-formatted if any line uses a Markdown block marker
+  # (list, ordered list, heading, blockquote) or it contains inline markup.
+  has_md <- any(grepl("^([-*+][[:space:]]|[0-9]+\\.[[:space:]]|#{1,6}[[:space:]]|>)",
+                      lines)) ||
+            grepl("\\*\\*|__|`|\\[[^]]+\\]\\([^)]+\\)", txt)
+  md <- if (!has_md && length(nonempty) > 1)
+          paste0("- ", nonempty, collapse = "\n")
+        else txt
+  shiny::markdown(md)
+}
+
 # ggplotly makes one trace per colour x shape combination, so an interactive
 # lollipop legend lists every ClinVar x novelty pairing (and buries the domains
 # in the same list). Collapse the built plotly legend into three clean, titled
@@ -1084,7 +1106,11 @@ ui <- function(request) page_sidebar(
               "anno_variant_note",
               "Note (shown on the variant landing page)",
               width = "100%", height = "120px",
-              placeholder = "Free-text note for this variant…"),
+              placeholder = "First observation\nSecond observation"),
+            tags$div(class = "form-text mb-2",
+                     "Each line becomes a bullet by default. Markdown is ",
+                     "respected — use ", tags$code("- "), " for bullets, ",
+                     tags$code("**bold**"), ", ", tags$code("# heading"), "."),
             div(class = "d-flex align-items-center gap-2",
                 actionButton(
                   "anno_variant_save",
@@ -1102,7 +1128,11 @@ ui <- function(request) page_sidebar(
               "anno_sample_note",
               "Note (shown in the sample explorer)",
               width = "100%", height = "120px",
-              placeholder = "Free-text note for this sample…"),
+              placeholder = "First observation\nSecond observation"),
+            tags$div(class = "form-text mb-2",
+                     "Each line becomes a bullet by default. Markdown is ",
+                     "respected — use ", tags$code("- "), " for bullets, ",
+                     tags$code("**bold**"), ", ", tags$code("# heading"), "."),
             div(class = "d-flex align-items-center gap-2",
                 actionButton(
                   "anno_sample_save",
@@ -1742,7 +1772,7 @@ server <- function(input, output, session) {
     # Append a "Novel" pill for variants manually flagged novel for MacTel.
     # Reading novel_keys() makes every table cell re-render on annotation save.
     badge <- ifelse(key %in% novel_keys(),
-                    " <span class='badge bg-warning text-dark'>Novel</span>", "")
+                    " <span class='badge bg-warning' style='color:#000;'>Novel</span>", "")
     paste0(link, badge)
   }
   # Searchable-dropdown choices for the annotation tab: one entry per distinct
@@ -2367,12 +2397,12 @@ server <- function(input, output, session) {
     sa <- sample_anno(input$sample_pick)
     note_box <- if (!is.null(sa$note) && nzchar(sa$note))
       div(class = "alert alert-info py-2 px-3 mb-2",
-          tags$span(bsicons::bs_icon("journal-text"), class = "me-1"),
-          tags$span(class = "fw-semibold me-1", "Note:"),
-          tags$span(sa$note),
-          if (!is.null(sa$updated))
-            tags$span(class = "text-muted small ms-2",
-                      sprintf("(%s)", sa$updated)))
+          div(tags$span(bsicons::bs_icon("journal-text"), class = "me-1"),
+              tags$span(class = "fw-semibold", "Note"),
+              if (!is.null(sa$updated))
+                tags$span(class = "text-muted small ms-2",
+                          sprintf("(%s)", sa$updated))),
+          div(class = "note-body mt-1", render_note(sa$note)))
 
     tagList(
       id_line,
@@ -2899,11 +2929,12 @@ server <- function(input, output, session) {
     a <- variant_anno(key)
     if (is.null(a)) return(NULL)
     novel_pill <- if (isTRUE(a$novel))
-      tags$span("Novel for MacTel", class = "badge bg-warning text-dark me-2")
+      tags$span("Novel for MacTel", class = "badge bg-warning me-2",
+                style = "color:#000;")
     note_p <- if (!is.null(a$note) && nzchar(a$note))
       tags$div(class = "mt-1",
-               tags$span(class = "text-muted small", "Curator note: "),
-               tags$span(a$note))
+               tags$div(class = "text-muted small", "Curator note"),
+               tags$div(class = "note-body", render_note(a$note)))
     if (is.null(novel_pill) && is.null(note_p)) return(NULL)
     tags$div(class = "mt-1 mb-1", novel_pill, note_p)
   }
