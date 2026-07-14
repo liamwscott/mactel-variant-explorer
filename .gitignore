@@ -47,3 +47,6 @@ app/data/.saved_filters.json
 # manual annotations: novel flags + variant/sample notes (embed real sample IDs
 # and free-text notes about real individuals; kept local, never committed)
 app/data/.annotations.json
+
+# per-sample sentinel PRS merged into the app (real sample IDs + scores; local only)
+app/data/sample_prs.tsv

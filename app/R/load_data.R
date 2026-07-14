@@ -174,19 +174,33 @@ SAMPLE_TAG_COLS <- c(
 #' or a de-identified sheet (already keyed by `family_id`, e.g. FAMILY001).
 #' Returns a tibble keyed by `family_id` (matching the variant data) with logical
 #' case/control flags plus the raw group flags used for tags, or NULL if absent.
-load_sample_info <- function(path) {
+load_sample_info <- function(path, prs_path = NULL) {
   if (is.null(path) || !file.exists(path)) return(NULL)
   s <- readr::read_tsv(path, show_col_types = FALSE)
   if (!("family_id" %in% names(s)) && "Manifest_Sample_ID" %in% names(s)) {
     s$family_id <- stringr::str_remove(as.character(s$Manifest_Sample_ID), "RLA$")
   }
-  s %>%
+  s <- s %>%
     dplyr::mutate(
       family_id  = as.character(family_id),
       is_mactel  = !is.na(MacTel_Diagnosis) & MacTel_Diagnosis == "yes",
       is_hsan1   = !is.na(HSAN1_variant) & as.numeric(HSAN1_variant) == 1,
       is_control = !is_mactel & !is_hsan1
     )
+  # Merge the sentinel MacTel PRS (per-sample, keyed by AID). Kept in a separate
+  # local file (data/sample_prs.tsv, gitignored) so scores travel with the app
+  # without editing the sample sheet. PRS = raw weighted score, PRS_Z = Z vs the
+  # control distribution. Absent -> NA (samples with no PRS drop out of PRS plots).
+  if (is.null(prs_path)) prs_path <- file.path(dirname(path), "sample_prs.tsv")
+  if (file.exists(prs_path) && "AID" %in% names(s)) {
+    p <- readr::read_tsv(prs_path, show_col_types = FALSE)
+    p$AID <- as.character(p$AID)
+    s <- dplyr::left_join(s, p[, intersect(c("AID", "PRS", "PRS_Z"), names(p))],
+                          by = "AID")
+  }
+  if (!("PRS"   %in% names(s))) s$PRS   <- NA_real_
+  if (!("PRS_Z" %in% names(s))) s$PRS_Z <- NA_real_
+  s
 }
 
 #' Add a Tier column to a variant dataframe.

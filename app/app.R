@@ -346,6 +346,13 @@ MACTEL_OF <- if (!is.null(SAMPLE_INFO) &&
   stats::setNames(as.logical(SAMPLE_INFO$is_mactel),
                   as.character(SAMPLE_INFO$family_id)) else logical(0)
 
+# family_id -> sentinel PRS (raw and Z), for the PRS integration tab.
+PRS_OF  <- if (!is.null(SAMPLE_INFO) && "PRS" %in% names(SAMPLE_INFO))
+  stats::setNames(as.numeric(SAMPLE_INFO$PRS),   as.character(SAMPLE_INFO$family_id)) else numeric(0)
+PRSZ_OF <- if (!is.null(SAMPLE_INFO) && "PRS_Z" %in% names(SAMPLE_INFO))
+  stats::setNames(as.numeric(SAMPLE_INFO$PRS_Z), as.character(SAMPLE_INFO$family_id)) else numeric(0)
+HAS_PRS <- length(PRS_OF) > 0 && any(!is.na(PRS_OF))
+
 # Family_ID for a single individual family_id, or NA when it has no family.
 family_of <- function(fid) {
   fid <- as.character(fid)
@@ -1148,6 +1155,44 @@ ui <- function(request) page_sidebar(
                   class = "btn btn-primary"),
                 uiOutput("anno_sample_status", inline = TRUE))
           )
+        )
+      )
+    ),
+
+    nav_panel(
+      "PRS integration",
+      icon = bsicons::bs_icon("bar-chart-steps"),
+      div(
+        tags$p(class = "text-muted small mt-2",
+               bsicons::bs_icon("info-circle"),
+               " Compare the sentinel MacTel PRS across custom groups. Each group is ",
+               "defined by sample criteria (cohort and/or a manual sample list) and, ",
+               "optionally, whether samples carry variants matching a filter (gene / CADD ",
+               "/ VEP impact / REVEL / ClinVar). Absent variant = negative (WGS samples)."),
+        card(
+          card_header("Group builder"),
+          layout_columns(
+            col_widths = c(4, 8),
+            div(
+              numericInput("prs_ngroups", "Number of groups",
+                           value = 2, min = 2, max = 6, step = 1),
+              radioButtons("prs_yaxis", "Y-axis",
+                           choices = c("Z-score" = "Z", "Raw PRS" = "raw"),
+                           selected = "Z", inline = TRUE),
+              actionButton("prs_go", tagList(bsicons::bs_icon("play-fill"), " Generate"),
+                           class = "btn btn-primary")
+            ),
+            uiOutput("prs_group_defs")
+          )
+        ),
+        card(
+          card_header(
+            "PRS by group",
+            downloadButton("prs_dl", "Download PNG",
+                           class = "btn-sm btn-primary float-end")
+          ),
+          plotOutput("prs_box", height = 460),
+          tableOutput("prs_ttests")
         )
       )
     )
@@ -2716,6 +2761,196 @@ server <- function(input, output, session) {
                { anno_saved_at$variant <- NULL }, ignoreInit = TRUE)
   observeEvent(list(input$anno_sample_pick, input$anno_sample_note),
                { anno_saved_at$sample <- NULL }, ignoreInit = TRUE)
+
+  # ==== PRS integration =======================================================
+  # Cohort -> family_ids, from the sample sheet flags. Static (SAMPLE_INFO does
+  # not change during a session).
+  prs_cohorts <- local({
+    si <- SAMPLE_INFO
+    if (is.null(si)) list() else {
+      flag_ids <- function(col) if (col %in% names(si))
+        as.character(si$family_id[!is.na(si[[col]]) &
+                                  suppressWarnings(as.numeric(si[[col]])) == 1]) else character(0)
+      Filter(function(x) length(x) > 0, list(
+        "MacTel"         = as.character(si$family_id[si$is_mactel]),
+        "Unaffected"     = as.character(si$family_id[!is.na(si$MacTel_Diagnosis) &
+                                                     si$MacTel_Diagnosis == "no"]),
+        "HSAN1"          = as.character(si$family_id[si$is_hsan1]),
+        "Control"        = as.character(si$family_id[si$is_control]),
+        "Early onset"    = flag_ids("Early_onset"),
+        "Golden cohort"  = flag_ids("Golden_cohort"),
+        "Clinical trial" = flag_ids("Clinical_trial"),
+        "Low PRS"        = flag_ids("Low_PRS"),
+        "Chr 5"          = flag_ids("Chr_5")))
+    }
+  })
+  prs_universe <- names(PRS_OF)[!is.na(PRS_OF)]   # samples that carry a PRS
+
+  # One definition block per group, rebuilt when the group count changes.
+  output$prs_group_defs <- renderUI({
+    if (!HAS_PRS)
+      return(tags$div(class = "alert alert-warning",
+        "No PRS loaded. Add data/sample_prs.tsv (AID, PRS, PRS_Z) to use this tab."))
+    ng <- max(2, min(6, input$prs_ngroups %||% 2))
+    genes <- if (!is.null(raw())) sort(unique(as.character(raw()$SYMBOL))) else character(0)
+    samp_choices <- stats::setNames(prs_universe, fmt_sample(prs_universe))
+    cadd_max <- if (!is.null(raw())) ceiling(max(raw()$CADD, na.rm = TRUE)) else 60
+
+    block <- function(g) {
+      id <- function(x) paste0("prs_g", g, "_", x)
+      tags$div(
+        class = "border rounded p-2 mb-2",
+        div(class = "d-flex align-items-center gap-2 mb-1",
+            tags$strong(sprintf("Group %d", g)),
+            textInput(id("name"), NULL, value = sprintf("Group %d", g),
+                      width = "220px", placeholder = "label")),
+        tags$div(class = "text-muted small", "Sample criteria"),
+        checkboxGroupInput(id("cohort"), NULL, choices = names(prs_cohorts),
+                           inline = TRUE),
+        selectizeInput(id("samples"), NULL, choices = samp_choices, multiple = TRUE,
+                       width = "100%",
+                       options = list(placeholder = "…or pick specific samples")),
+        tags$div(class = "text-muted small mt-1", "Variant criteria (optional)"),
+        div(class = "d-flex flex-wrap align-items-end gap-2",
+            radioButtons(id("dir"), NULL, inline = TRUE,
+                         choices = c("with" = "with", "without" = "without"),
+                         selected = "with"),
+            div(style = "min-width:180px;",
+                selectizeInput(id("genes"), "Gene(s)", choices = genes, multiple = TRUE,
+                               width = "100%",
+                               options = list(placeholder = "any gene"))),
+            div(style = "width:130px;",
+                sliderInput(id("cadd"), "CADD ≥", min = 0, max = cadd_max,
+                            value = 0, step = 1)),
+            div(style = "width:130px;",
+                sliderInput(id("revel"), "REVEL ≥", min = 0, max = 1,
+                            value = 0, step = 0.05))),
+        div(class = "d-flex flex-wrap gap-3 mt-1",
+            div(tags$span(class = "text-muted small", "VEP impact"),
+                checkboxGroupInput(id("impact"), NULL, choices = IMPACT_LEVELS, inline = TRUE)),
+            div(tags$span(class = "text-muted small", "ClinVar"),
+                checkboxGroupInput(id("clnsig"), NULL, choices = CLNSIG_LEVELS, inline = TRUE)))
+      )
+    }
+    lapply(seq_len(ng), block)
+  })
+
+  # Build the per-sample group membership + PRS on Generate.
+  prs_membership <- eventReactive(input$prs_go, {
+    req(HAS_PRS)
+    ng   <- max(2, min(6, isolate(input$prs_ngroups) %||% 2))
+    rawv <- raw()
+    get  <- function(g, x) input[[paste0("prs_g", g, "_", x)]]
+    parts <- lapply(seq_len(ng), function(g) {
+      nm <- get(g, "name"); if (is.null(nm) || !nzchar(nm)) nm <- paste("Group", g)
+      # sample set: union of ticked cohorts (all PRS samples if none), then
+      # intersected with a manual list if given.
+      coh <- get(g, "cohort"); man <- get(g, "samples")
+      # multiple cohorts combine with AND (intersection), e.g. HSAN1 + MacTel
+      sset <- if (length(coh)) Reduce(intersect, prs_cohorts[coh]) else prs_universe
+      if (length(man)) sset <- intersect(sset, man)
+      sset <- intersect(sset, prs_universe)
+      # variant criteria (only applied if the user set at least one)
+      genes  <- get(g, "genes"); cadd <- get(g, "cadd") %||% 0
+      revel  <- get(g, "revel") %||% 0
+      impact <- get(g, "impact"); clnsig <- get(g, "clnsig"); dir <- get(g, "dir") %||% "with"
+      active <- length(genes) > 0 || cadd > 0 || revel > 0 ||
+                length(impact) > 0 || length(clnsig) > 0
+      if (active && !is.null(rawv) && nrow(rawv) > 0) {
+        m <- rawv
+        if (length(genes)) m <- m[m$SYMBOL %in% genes, , drop = FALSE]
+        if (cadd  > 0)     m <- m[is.na(m$CADD) | m$CADD >= cadd, , drop = FALSE]
+        if (revel > 0)     m <- m[!is.na(m$REVEL) & m$REVEL >= revel, , drop = FALSE]
+        if (length(impact)) m <- m[as.character(m$IMPACT) %in% impact, , drop = FALSE]
+        if (length(clnsig)) m <- m[as.character(m$CLNSIG_clean) %in% clnsig, , drop = FALSE]
+        carriers <- unique(as.character(m$family_id))
+        sset <- if (dir == "without") setdiff(sset, carriers) else intersect(sset, carriers)
+      }
+      if (length(sset) == 0) return(NULL)
+      data.frame(group = nm, family_id = sset,
+                 PRS = unname(PRS_OF[sset]), Z = unname(PRSZ_OF[sset]),
+                 stringsAsFactors = FALSE)
+    })
+    df <- do.call(rbind, parts)
+    if (is.null(df) || nrow(df) == 0) return(NULL)
+    df <- df[!is.na(df$PRS), , drop = FALSE]
+    # keep groups in definition order (unique names, first-seen)
+    df$group <- factor(df$group, levels = unique(df$group))
+    df
+  })
+
+  # y column follows the toggle (fall back to raw if no Z available).
+  prs_ycol <- reactive({
+    if (identical(input$prs_yaxis, "Z") && any(!is.na(PRSZ_OF))) "Z" else "raw"
+  })
+
+  prs_plot <- reactive({
+    d <- prs_membership()
+    validate(need(!is.null(d) && nlevels(droplevels(d$group)) >= 1,
+                  "Define groups and click Generate."))
+    yc  <- prs_ycol()
+    d$y <- if (yc == "Z") d$Z else d$PRS
+    d   <- d[!is.na(d$y), , drop = FALSE]
+    n   <- as.data.frame(table(d$group))
+    lab <- stats::setNames(sprintf("%s\n(n=%d)", n$Var1, n$Freq), n$Var1)
+    ylab <- if (yc == "Z") "PRS Z-score (controls: mean 0, sd 1)" else "PRS (weighted risk-allele burden)"
+    # subtitle: for two groups show the t-test p directly
+    subtitle <- NULL
+    gl <- levels(droplevels(d$group))
+    if (length(gl) == 2) {
+      tt <- tryCatch(t.test(d$y[d$group == gl[1]], d$y[d$group == gl[2]]),
+                     error = function(e) NULL)
+      if (!is.null(tt)) subtitle <- sprintf("Welch t-test p = %.3g", tt$p.value)
+    }
+    p <- ggplot2::ggplot(d, ggplot2::aes(group, y, fill = group)) +
+      { if (yc == "Z") ggplot2::geom_hline(yintercept = 0, linetype = "dashed",
+                                           colour = "grey60") } +
+      ggplot2::geom_boxplot(width = 0.6, outlier.shape = NA, alpha = 0.85) +
+      ggplot2::geom_jitter(width = 0.12, size = 1.3, alpha = 0.5) +
+      ggplot2::scale_x_discrete(labels = lab) +
+      ggplot2::scale_fill_brewer(palette = "Set2", guide = "none") +
+      ggplot2::labs(title = "PRS by group", subtitle = subtitle,
+                    x = NULL, y = ylab) +
+      theme_app() +
+      ggplot2::theme(panel.grid.major.x = ggplot2::element_blank())
+    p
+  })
+
+  output$prs_box <- renderPlot({ prs_plot() })
+
+  # Pairwise two-sided Welch t-tests between all group pairs.
+  output$prs_ttests <- renderTable({
+    d <- prs_membership()
+    validate(need(!is.null(d), "No groups yet."))
+    yc <- prs_ycol(); d$y <- if (yc == "Z") d$Z else d$PRS
+    d  <- d[!is.na(d$y), , drop = FALSE]
+    gl <- levels(droplevels(d$group))
+    validate(need(length(gl) >= 2, "Need at least two non-empty groups."))
+    combos <- utils::combn(gl, 2)
+    do.call(rbind, lapply(seq_len(ncol(combos)), function(i) {
+      a <- combos[1, i]; b <- combos[2, i]
+      ya <- d$y[d$group == a]; yb <- d$y[d$group == b]
+      if (length(ya) < 2 || length(yb) < 2)
+        return(data.frame(`Group A` = a, `Group B` = b, `n A` = length(ya),
+                          `n B` = length(yb), `mean diff` = NA, t = NA, p = NA,
+                          check.names = FALSE))
+      tt <- t.test(ya, yb)
+      data.frame(`Group A` = a, `Group B` = b, `n A` = length(ya), `n B` = length(yb),
+                 `mean diff` = round(unname(diff(rev(tt$estimate))), 3),
+                 t = round(unname(tt$statistic), 2),
+                 p = signif(tt$p.value, 3), check.names = FALSE)
+    }))
+  }, striped = TRUE, spacing = "xs")
+
+  output$prs_dl <- downloadHandler(
+    filename = function() sprintf("prs_groups_%s.png", Sys.Date()),
+    content  = function(file) {
+      p <- tryCatch(prs_plot(), error = function(e) NULL)
+      req(!is.null(p))
+      ggplot2::ggsave(file, p, device = "png", width = 8, height = 6,
+                      dpi = 200, bg = "white")
+    }
+  )
 
   # Build (and re-show) the share/save dialog. Re-showing after a save or delete
   # keeps the saved-filters dropdown in sync without partial UI updates.
