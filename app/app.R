@@ -1171,19 +1171,18 @@ ui <- function(request) page_sidebar(
                "/ VEP impact / REVEL / ClinVar). Absent variant = negative (WGS samples)."),
         card(
           card_header("Group builder"),
-          layout_columns(
-            col_widths = c(4, 8),
-            div(
-              numericInput("prs_ngroups", "Number of groups",
-                           value = 2, min = 2, max = 6, step = 1),
+          # Controls in a full-width strip above the group creator so the group
+          # blocks below get the full window width.
+          div(class = "d-flex flex-wrap align-items-end gap-4 mb-3",
+              div(style = "width:150px;",
+                  numericInput("prs_ngroups", "Number of groups",
+                               value = 2, min = 2, max = 6, step = 1)),
               radioButtons("prs_yaxis", "Y-axis",
                            choices = c("Z-score" = "Z", "Raw PRS" = "raw"),
                            selected = "Z", inline = TRUE),
               actionButton("prs_go", tagList(bsicons::bs_icon("play-fill"), " Generate"),
-                           class = "btn btn-primary")
-            ),
-            uiOutput("prs_group_defs")
-          )
+                           class = "btn btn-primary")),
+          uiOutput("prs_group_defs")
         ),
         card(
           card_header(
@@ -2804,7 +2803,10 @@ server <- function(input, output, session) {
             tags$strong(sprintf("Group %d", g)),
             textInput(id("name"), NULL, value = sprintf("Group %d", g),
                       width = "220px", placeholder = "label")),
-        tags$div(class = "text-muted small", "Sample criteria"),
+        div(class = "d-flex align-items-center gap-2",
+            tags$span(class = "text-muted small", "Sample criteria — combine cohorts with"),
+            radioButtons(id("cohort_op"), NULL, inline = TRUE,
+                         choices = c("AND" = "AND", "OR" = "OR"), selected = "AND")),
         checkboxGroupInput(id("cohort"), NULL, choices = names(prs_cohorts),
                            inline = TRUE),
         selectizeInput(id("samples"), NULL, choices = samp_choices, multiple = TRUE,
@@ -2846,8 +2848,13 @@ server <- function(input, output, session) {
       # sample set: union of ticked cohorts (all PRS samples if none), then
       # intersected with a manual list if given.
       coh <- get(g, "cohort"); man <- get(g, "samples")
-      # multiple cohorts combine with AND (intersection), e.g. HSAN1 + MacTel
-      sset <- if (length(coh)) Reduce(intersect, prs_cohorts[coh]) else prs_universe
+      # cohorts combine per the group's AND/OR selector: AND = intersection
+      # (e.g. HSAN1 AND MacTel), OR = union (HSAN1 OR MacTel).
+      op <- get(g, "cohort_op") %||% "AND"
+      sset <- if (length(coh)) {
+        if (identical(op, "OR")) unique(unlist(prs_cohorts[coh], use.names = FALSE))
+        else Reduce(intersect, prs_cohorts[coh])
+      } else prs_universe
       if (length(man)) sset <- intersect(sset, man)
       sset <- intersect(sset, prs_universe)
       # variant criteria (only applied if the user set at least one)
