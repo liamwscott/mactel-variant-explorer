@@ -1182,6 +1182,10 @@ ui <- function(request) page_sidebar(
                            selected = "Z", inline = TRUE),
               actionButton("prs_go", tagList(bsicons::bs_icon("play-fill"), " Generate"),
                            class = "btn btn-primary")),
+          div(class = "mb-2",
+              checkboxInput("prs_complement",
+                            "Group 2 = the other half of Group 1 (same samples, opposite variant filter) — 2 groups only",
+                            value = FALSE)),
           uiOutput("prs_group_defs")
         ),
         card(
@@ -1420,8 +1424,12 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "genes",
                          choices = sort(unique(df$SYMBOL)), server = TRUE)
     fids <- sort(unique(df$family_id))
+    # All sample-list samples, including any with no variant rows, so they stay
+    # searchable in the Sample explorer / annotations (e.g. to view PRS or tags).
+    si_fids  <- if (!is.null(SAMPLE_INFO)) as.character(SAMPLE_INFO$family_id) else character(0)
+    all_fids <- sort(unique(c(fids, si_fids)))
     updateSelectizeInput(session, "sample_pick",
-                         choices = stats::setNames(fids, fmt_sample(fids)),
+                         choices = stats::setNames(all_fids, fmt_sample(all_fids)),
                          server = TRUE)
     updateSelectizeInput(session, "exclude_samples",
                          choices = stats::setNames(fids, fmt_sample(fids)),
@@ -1432,7 +1440,7 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "anno_variant_pick",
                          choices = variant_choices(df), server = TRUE)
     updateSelectizeInput(session, "anno_sample_pick",
-                         choices = stats::setNames(fids, fmt_sample(fids)),
+                         choices = stats::setNames(all_fids, fmt_sample(all_fids)),
                          server = TRUE)
     mx <- ceiling(max(df$CADD, na.rm = TRUE))
     updateSliderInput(session, "cadd", max = mx, value = 0)
@@ -1445,8 +1453,10 @@ server <- function(input, output, session) {
   observeEvent(list(input$id_format, input$anon_mode), {
     df <- raw(); req(df)
     fids <- sort(unique(df$family_id))
+    si_fids  <- if (!is.null(SAMPLE_INFO)) as.character(SAMPLE_INFO$family_id) else character(0)
+    all_fids <- sort(unique(c(fids, si_fids)))
     updateSelectizeInput(session, "sample_pick",
-                         choices = stats::setNames(fids, fmt_sample(fids)),
+                         choices = stats::setNames(all_fids, fmt_sample(all_fids)),
                          selected = isolate(input$sample_pick) %||% "",
                          server = TRUE)
     updateSelectizeInput(session, "exclude_samples",
@@ -2456,13 +2466,46 @@ server <- function(input, output, session) {
                           sprintf("(%s)", sa$updated))),
           div(class = "note-body mt-1", render_note(sa$note)))
 
+    # Sentinel PRS for this sample + a mini MacTel PRS density with the sample
+    # marked, so you can see where they sit relative to MacTel cases.
+    prs_val  <- if (length(PRS_OF))  unname(PRS_OF[input$sample_pick])  else NA_real_
+    prsz_val <- if (length(PRSZ_OF)) unname(PRSZ_OF[input$sample_pick]) else NA_real_
+    prs_block <- if (!is.na(prs_val)) tagList(
+      div(class = "mb-1",
+          tags$span("MacTel PRS: ", class = "text-muted small me-1"),
+          tags$span(sprintf("%.2f", prs_val), class = "fw-semibold"),
+          if (!is.na(prsz_val))
+            tags$span(class = "text-muted small ms-2", sprintf("(Z = %+.2f)", prsz_val))),
+      plotOutput("sample_prs_density", height = "150px", width = "360px"))
+
     tagList(
       id_line,
       div(class = "mb-2",
           tags$span("Tags: ", class = "text-muted small me-1"),
           diag_badge, group_badges),
+      prs_block,
       note_box
     )
+  })
+
+  # Mini density of the MacTel PRS distribution with the selected sample marked.
+  output$sample_prs_density <- renderPlot({
+    fid <- input$sample_pick
+    req(fid, nzchar(fid), length(PRS_OF) > 0)
+    v <- unname(PRS_OF[fid]); req(!is.na(v))
+    mt_fids <- names(MACTEL_OF)[MACTEL_OF]              # MacTel samples
+    mvals   <- PRS_OF[names(PRS_OF) %in% mt_fids]; mvals <- mvals[!is.na(mvals)]
+    validate(need(length(mvals) >= 5, "Too few MacTel PRS values."))
+    ggplot2::ggplot(data.frame(PRS = as.numeric(mvals)), ggplot2::aes(PRS)) +
+      ggplot2::geom_density(fill = "#C62828", colour = "#C62828", alpha = 0.2) +
+      ggplot2::geom_vline(xintercept = v, colour = "black", linewidth = 1.1) +
+      ggplot2::annotate("text", x = v, y = 0, label = "this sample", vjust = -0.4,
+                        hjust = -0.05, size = 3.2) +
+      ggplot2::labs(x = "MacTel PRS (density = MacTel cases)", y = NULL) +
+      theme_app() +
+      ggplot2::theme(axis.text.y = ggplot2::element_blank(),
+                     axis.ticks.y = ggplot2::element_blank(),
+                     plot.margin = ggplot2::margin(2, 6, 2, 2))
   })
 
   build_sample_dt <- function(d) {
@@ -2812,7 +2855,11 @@ server <- function(input, output, session) {
         selectizeInput(id("samples"), NULL, choices = samp_choices, multiple = TRUE,
                        width = "100%",
                        options = list(placeholder = "…or pick specific samples")),
-        tags$div(class = "text-muted small mt-1", "Variant criteria (optional)"),
+        div(class = "d-flex align-items-center gap-2 mt-1",
+            tags$span(class = "text-muted small",
+                      "Variant criteria (optional) — combine filters with"),
+            radioButtons(id("variant_op"), NULL, inline = TRUE,
+                         choices = c("AND" = "AND", "OR" = "OR"), selected = "AND")),
         div(class = "d-flex flex-wrap align-items-end gap-2",
             radioButtons(id("dir"), NULL, inline = TRUE,
                          choices = c("with" = "with", "without" = "without"),
@@ -2834,7 +2881,20 @@ server <- function(input, output, session) {
                 checkboxGroupInput(id("clnsig"), NULL, choices = CLNSIG_LEVELS, inline = TRUE)))
       )
     }
-    lapply(seq_len(ng), block)
+    # Compact block for the auto-complement Group 2 (criteria come from Group 1).
+    complement_block <- function(g) tags$div(
+      class = "border rounded p-2 mb-2 bg-light",
+      div(class = "d-flex align-items-center gap-2 mb-1",
+          tags$strong(sprintf("Group %d", g)),
+          textInput(paste0("prs_g", g, "_name"), NULL, value = "Other half",
+                    width = "220px", placeholder = "label")),
+      tags$div(class = "text-muted small",
+               bsicons::bs_icon("arrow-left-right"),
+               " Complement of Group 1: the same samples that fall on the opposite side ",
+               "of Group 1's variant filter. Criteria below are ignored."))
+    complement <- isTRUE(input$prs_complement) && ng == 2
+    lapply(seq_len(ng), function(g)
+      if (complement && g == 2) complement_block(g) else block(g))
   })
 
   # Build the per-sample group membership + PRS on Generate.
@@ -2843,46 +2903,59 @@ server <- function(input, output, session) {
     ng   <- max(2, min(6, isolate(input$prs_ngroups) %||% 2))
     rawv <- raw()
     get  <- function(g, x) input[[paste0("prs_g", g, "_", x)]]
-    parts <- lapply(seq_len(ng), function(g) {
+
+    # Resolve one group's sample set S (pre-variant) and final ids (post-variant).
+    group_ids <- function(g) {
       nm <- get(g, "name"); if (is.null(nm) || !nzchar(nm)) nm <- paste("Group", g)
-      # sample set: union of ticked cohorts (all PRS samples if none), then
-      # intersected with a manual list if given.
       coh <- get(g, "cohort"); man <- get(g, "samples")
-      # cohorts combine per the group's AND/OR selector: AND = intersection
-      # (e.g. HSAN1 AND MacTel), OR = union (HSAN1 OR MacTel).
-      op <- get(g, "cohort_op") %||% "AND"
-      sset <- if (length(coh)) {
+      op  <- get(g, "cohort_op") %||% "AND"     # AND = intersection, OR = union
+      S <- if (length(coh)) {
         if (identical(op, "OR")) unique(unlist(prs_cohorts[coh], use.names = FALSE))
         else Reduce(intersect, prs_cohorts[coh])
       } else prs_universe
-      if (length(man)) sset <- intersect(sset, man)
-      sset <- intersect(sset, prs_universe)
-      # variant criteria (only applied if the user set at least one)
+      if (length(man)) S <- intersect(S, man)
+      S <- intersect(S, prs_universe)
+      # variant criteria — each set filter is a condition; combine per variant_op.
       genes  <- get(g, "genes"); cadd <- get(g, "cadd") %||% 0
       revel  <- get(g, "revel") %||% 0
-      impact <- get(g, "impact"); clnsig <- get(g, "clnsig"); dir <- get(g, "dir") %||% "with"
+      impact <- get(g, "impact"); clnsig <- get(g, "clnsig")
+      dir <- get(g, "dir") %||% "with"; vop <- get(g, "variant_op") %||% "AND"
       active <- length(genes) > 0 || cadd > 0 || revel > 0 ||
                 length(impact) > 0 || length(clnsig) > 0
+      ids <- S
       if (active && !is.null(rawv) && nrow(rawv) > 0) {
-        m <- rawv
-        if (length(genes)) m <- m[m$SYMBOL %in% genes, , drop = FALSE]
-        if (cadd  > 0)     m <- m[is.na(m$CADD) | m$CADD >= cadd, , drop = FALSE]
-        if (revel > 0)     m <- m[!is.na(m$REVEL) & m$REVEL >= revel, , drop = FALSE]
-        if (length(impact)) m <- m[as.character(m$IMPACT) %in% impact, , drop = FALSE]
-        if (length(clnsig)) m <- m[as.character(m$CLNSIG_clean) %in% clnsig, , drop = FALSE]
-        carriers <- unique(as.character(m$family_id))
-        sset <- if (dir == "without") setdiff(sset, carriers) else intersect(sset, carriers)
+        conds <- list()
+        if (length(genes)) conds[[length(conds) + 1]] <- rawv$SYMBOL %in% genes
+        if (cadd  > 0)     conds[[length(conds) + 1]] <- !is.na(rawv$CADD)  & rawv$CADD  >= cadd
+        if (revel > 0)     conds[[length(conds) + 1]] <- !is.na(rawv$REVEL) & rawv$REVEL >= revel
+        if (length(impact)) conds[[length(conds) + 1]] <- as.character(rawv$IMPACT) %in% impact
+        if (length(clnsig)) conds[[length(conds) + 1]] <- as.character(rawv$CLNSIG_clean) %in% clnsig
+        keep <- if (identical(vop, "OR")) Reduce(`|`, conds) else Reduce(`&`, conds)
+        carriers <- unique(as.character(rawv$family_id[keep]))
+        ids <- if (dir == "without") setdiff(S, carriers) else intersect(S, carriers)
       }
-      if (length(sset) == 0) return(NULL)
-      data.frame(group = nm, family_id = sset,
-                 PRS = unname(PRS_OF[sset]), Z = unname(PRSZ_OF[sset]),
+      list(name = nm, S = S, ids = ids)
+    }
+    mk_df <- function(nm, ids) {
+      if (length(ids) == 0) return(NULL)
+      data.frame(group = nm, family_id = ids,
+                 PRS = unname(PRS_OF[ids]), Z = unname(PRSZ_OF[ids]),
                  stringsAsFactors = FALSE)
-    })
+    }
+
+    complement <- isTRUE(isolate(input$prs_complement)) && ng == 2
+    if (complement) {
+      g1 <- group_ids(1)
+      nm2 <- get(2, "name"); if (is.null(nm2) || !nzchar(nm2)) nm2 <- "Other half"
+      parts <- list(mk_df(g1$name, g1$ids),
+                    mk_df(nm2, setdiff(g1$S, g1$ids)))   # the rest of Group 1's samples
+    } else {
+      parts <- lapply(seq_len(ng), function(g) { gg <- group_ids(g); mk_df(gg$name, gg$ids) })
+    }
     df <- do.call(rbind, parts)
     if (is.null(df) || nrow(df) == 0) return(NULL)
     df <- df[!is.na(df$PRS), , drop = FALSE]
-    # keep groups in definition order (unique names, first-seen)
-    df$group <- factor(df$group, levels = unique(df$group))
+    df$group <- factor(df$group, levels = unique(df$group))  # keep definition order
     df
   })
 
