@@ -4003,14 +4003,13 @@ server <- function(input, output, session) {
     removeModal()
     fid <- input$cell_sample
     if (is.null(fid) || !nzchar(fid)) return()
-    # The picker only lists samples that carry candidate variants. A family
-    # member with none (still clickable from the Family explorer header) is not
-    # among those choices, so updateSelectizeInput(selected = fid) would
-    # silently clear the selection and land on an empty Sample explorer. Add the
-    # fid to the choices first so the sample (with its identity + empty variant
-    # table) loads correctly.
-    df <- raw()
-    fids <- if (is.null(df)) fid else sort(unique(c(df$family_id, fid)))
+    # Rebuild the picker choices as the full union (variant carriers + every
+    # sample-list sample), so jumping to a sample never narrows the picker back
+    # to variant-only and variant-less samples stay searchable afterwards.
+    df      <- raw()
+    vfids   <- if (is.null(df)) character(0) else as.character(df$family_id)
+    si_fids <- if (!is.null(SAMPLE_INFO)) as.character(SAMPLE_INFO$family_id) else character(0)
+    fids    <- sort(unique(c(vfids, si_fids, fid)))
     updateSelectizeInput(session, "sample_pick",
                          choices = stats::setNames(fids, fmt_sample(fids)),
                          selected = fid, server = TRUE)
