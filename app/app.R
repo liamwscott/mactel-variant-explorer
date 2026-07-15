@@ -353,6 +353,42 @@ PRSZ_OF <- if (!is.null(SAMPLE_INFO) && "PRS_Z" %in% names(SAMPLE_INFO))
   stats::setNames(as.numeric(SAMPLE_INFO$PRS_Z), as.character(SAMPLE_INFO$family_id)) else numeric(0)
 HAS_PRS <- length(PRS_OF) > 0 && any(!is.na(PRS_OF))
 
+# Cohort -> family_ids, from the sample-sheet flags. Shared by the PRS tab and
+# the Sample explorer multi-sample filter. Empty cohorts are dropped.
+COHORT_SETS <- local({
+  si <- SAMPLE_INFO
+  if (is.null(si)) list() else {
+    flag_ids <- function(col) if (col %in% names(si))
+      as.character(si$family_id[!is.na(si[[col]]) &
+                                suppressWarnings(as.numeric(si[[col]])) == 1]) else character(0)
+    Filter(function(x) length(x) > 0, list(
+      "MacTel"         = as.character(si$family_id[si$is_mactel]),
+      "Unaffected"     = as.character(si$family_id[!is.na(si$MacTel_Diagnosis) &
+                                                   si$MacTel_Diagnosis == "no"]),
+      "HSAN1"          = as.character(si$family_id[si$is_hsan1]),
+      "Control"        = as.character(si$family_id[si$is_control]),
+      "Early onset"    = flag_ids("Early_onset"),
+      "Golden cohort"  = flag_ids("Golden_cohort"),
+      "Clinical trial" = flag_ids("Clinical_trial"),
+      "Low PRS"        = flag_ids("Low_PRS"),
+      "Chr 5"          = flag_ids("Chr_5")))
+  }
+})
+
+# Resolve a pasted/typed token (family_id, AID or Patient_ID) -> family_id, so
+# users can paste any of those identifiers into the multi-sample filter.
+TOKEN_TO_FID <- local({
+  si <- SAMPLE_INFO
+  if (is.null(si)) character(0) else {
+    keys <- c(as.character(si$family_id), as.character(si$AID),
+              as.character(si$Patient_ID))
+    vals <- rep(as.character(si$family_id), 3)
+    keep <- !is.na(keys) & nzchar(keys)
+    m <- stats::setNames(vals[keep], keys[keep])
+    m[!duplicated(names(m))]
+  }
+})
+
 # Family_ID for a single individual family_id, or NA when it has no family.
 family_of <- function(fid) {
   fid <- as.character(fid)
@@ -1041,6 +1077,29 @@ ui <- function(request) page_sidebar(
                          choices = NULL, multiple = FALSE,
                          options = list(placeholder = "Start typing a sample ID…"))
         ),
+        # Multi-sample filter: view several individuals' variants at once (with
+        # PRS), by cohort or a pasted / looked-up sample list. Independent of the
+        # single-sample picker and the sidebar filters.
+        card(
+          card_header(
+            "Compare samples — cohort or sample list",
+            tags$span(bsicons::bs_icon("info-circle"),
+                      " variants for the selected individuals, annotated with PRS; ",
+                      "a pasted list overrides the cohort selection",
+                      class = "text-muted small ms-2")),
+          layout_columns(
+            col_widths = c(5, 7),
+            selectizeInput("multi_cohort", "Cohort(s)", width = "100%",
+                           choices = names(COHORT_SETS), multiple = TRUE,
+                           options = list(placeholder = "e.g. MacTel, HSAN1")),
+            selectizeInput("multi_list", "…or paste / look up samples", width = "100%",
+                           choices = NULL, multiple = TRUE,
+                           options = list(
+                             placeholder = "paste AIDs / IDs (comma or space separated)",
+                             create = TRUE, delimiter = ","))),
+          uiOutput("multi_summary"),
+          DT::DTOutput("multi_table")
+        ),
         div(
           uiOutput("sample_tags"),
           card(
@@ -1430,6 +1489,10 @@ server <- function(input, output, session) {
     all_fids <- sort(unique(c(fids, si_fids)))
     updateSelectizeInput(session, "sample_pick",
                          choices = stats::setNames(all_fids, fmt_sample(all_fids)),
+                         server = TRUE)
+    updateSelectizeInput(session, "multi_list",
+                         choices = stats::setNames(all_fids, fmt_sample(all_fids)),
+                         selected = isolate(input$multi_list) %||% character(0),
                          server = TRUE)
     updateSelectizeInput(session, "exclude_samples",
                          choices = stats::setNames(fids, fmt_sample(fids)),
@@ -2508,6 +2571,63 @@ server <- function(input, output, session) {
                      plot.margin = ggplot2::margin(2, 6, 2, 2))
   })
 
+  # ---- multi-sample compare (cohort or pasted list) -------------------------
+  # Selected sample set: a pasted/looked-up list overrides the cohort choice.
+  # Tokens may be family_id, AID or Patient_ID; comma- or space-separated.
+  multi_samples <- reactive({
+    lst <- input$multi_list
+    if (length(lst)) {
+      toks <- unlist(strsplit(lst, "[,[:space:]]+"))
+      toks <- toks[nzchar(toks)]
+      unique(unname(TOKEN_TO_FID[toks])[!is.na(TOKEN_TO_FID[toks])])
+    } else if (length(input$multi_cohort)) {
+      unique(unlist(COHORT_SETS[input$multi_cohort], use.names = FALSE))
+    } else character(0)
+  })
+
+  output$multi_summary <- renderUI({
+    fids <- multi_samples()
+    if (!length(fids))
+      return(tags$p(class = "text-muted small",
+                    "Pick cohort(s) or paste sample IDs to compare individuals."))
+    df <- raw()
+    withv <- if (is.null(df)) character(0)
+             else intersect(fids, unique(as.character(df$family_id)))
+    tags$p(class = "text-muted small",
+      sprintf("%d samples selected · %d carry variants (shown below) · %d have a PRS",
+              length(unique(fids)), length(withv), sum(!is.na(PRS_OF[fids]))))
+  })
+
+  output$multi_table <- DT::renderDT({
+    fids <- multi_samples()
+    validate(need(length(fids) > 0, "Pick cohort(s) or paste sample IDs above."))
+    df <- raw(); validate(need(!is.null(df), "No variant data loaded."))
+    d <- df[as.character(df$family_id) %in% fids, , drop = FALSE]
+    validate(need(nrow(d) > 0, "None of the selected samples carry variants."))
+    fk <- as.character(d$family_id)
+    out <- data.frame(
+      Sample      = link_sample(d$family_id),
+      PRS         = round(unname(PRS_OF[fk]), 2),
+      PRS_Z       = round(unname(PRSZ_OF[fk]), 2),
+      Gene        = d$SYMBOL,
+      Tier        = d$Tier,
+      Variant     = link_variant(d$CHROM, d$POS, d$REF, d$ALT),
+      HGVSp       = d$HGVSp_short,
+      Impact      = as.character(d$IMPACT),
+      Type        = as.character(d$TYPE),
+      CADD        = round(d$CADD, 1),
+      REVEL       = round(d$REVEL, 3),
+      ClinVar     = as.character(d$CLNSIG_clean),
+      gnomAD_AF   = signif(d$gnomad_AF, 3),
+      Inheritance = d$inheritance,
+      check.names = FALSE, stringsAsFactors = FALSE)
+    DT::datatable(out, escape = FALSE, rownames = FALSE, selection = "none",
+                  filter = "top", extensions = "Buttons",
+                  options = list(pageLength = 25, scrollX = TRUE,
+                                 dom = "Bfrtip", buttons = c("copy", "csv"),
+                                 order = list(list(1, "desc"))))  # PRS desc
+  })
+
   build_sample_dt <- function(d) {
     tbl <- d %>%
       dplyr::transmute(
@@ -2805,27 +2925,7 @@ server <- function(input, output, session) {
                { anno_saved_at$sample <- NULL }, ignoreInit = TRUE)
 
   # ==== PRS integration =======================================================
-  # Cohort -> family_ids, from the sample sheet flags. Static (SAMPLE_INFO does
-  # not change during a session).
-  prs_cohorts <- local({
-    si <- SAMPLE_INFO
-    if (is.null(si)) list() else {
-      flag_ids <- function(col) if (col %in% names(si))
-        as.character(si$family_id[!is.na(si[[col]]) &
-                                  suppressWarnings(as.numeric(si[[col]])) == 1]) else character(0)
-      Filter(function(x) length(x) > 0, list(
-        "MacTel"         = as.character(si$family_id[si$is_mactel]),
-        "Unaffected"     = as.character(si$family_id[!is.na(si$MacTel_Diagnosis) &
-                                                     si$MacTel_Diagnosis == "no"]),
-        "HSAN1"          = as.character(si$family_id[si$is_hsan1]),
-        "Control"        = as.character(si$family_id[si$is_control]),
-        "Early onset"    = flag_ids("Early_onset"),
-        "Golden cohort"  = flag_ids("Golden_cohort"),
-        "Clinical trial" = flag_ids("Clinical_trial"),
-        "Low PRS"        = flag_ids("Low_PRS"),
-        "Chr 5"          = flag_ids("Chr_5")))
-    }
-  })
+  prs_cohorts  <- COHORT_SETS                     # cohort -> family_ids (shared global)
   prs_universe <- names(PRS_OF)[!is.na(PRS_OF)]   # samples that carry a PRS
 
   # One definition block per group, rebuilt when the group count changes.
