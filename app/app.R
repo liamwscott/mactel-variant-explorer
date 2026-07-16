@@ -1174,7 +1174,22 @@ ui <- function(request) page_sidebar(
                              options = list(
                                placeholder = "paste AIDs / IDs (comma or space separated)",
                                create = TRUE, delimiter = ","))),
-            uiOutput("multi_summary"),
+            uiOutput("multi_summary")
+          ),
+          card(
+            card_header(
+              "Filtered / prioritised variants",
+              tags$span(bsicons::bs_icon("info-circle"),
+                        " variants for the selected samples that pass the global filters",
+                        class = "text-muted small ms-2")),
+            DT::DTOutput("multi_table_filtered")
+          ),
+          card(
+            card_header(
+              "All variants",
+              tags$span(bsicons::bs_icon("info-circle"),
+                        " every variant the selected samples carry, ignoring filters",
+                        class = "text-muted small ms-2")),
             DT::DTOutput("multi_table")
           )
         )
@@ -2602,12 +2617,9 @@ server <- function(input, output, session) {
               length(unique(fids)), length(withv), sum(!is.na(PRS_OF[fids]))))
   })
 
-  output$multi_table <- DT::renderDT({
-    fids <- multi_samples()
-    validate(need(length(fids) > 0, "Pick cohort(s) or paste sample IDs above."))
-    df <- raw(); validate(need(!is.null(df), "No variant data loaded."))
-    d <- df[as.character(df$family_id) %in% fids, , drop = FALSE]
-    validate(need(nrow(d) > 0, "None of the selected samples carry variants."))
+  # Shared builder for the multi-sample tables: one row per variant-per-sample,
+  # annotated with PRS. Sample / Variant cells stay clickable.
+  build_multi_dt <- function(d) {
     fk <- as.character(d$family_id)
     out <- data.frame(
       Sample      = link_sample(d$family_id),
@@ -2630,7 +2642,25 @@ server <- function(input, output, session) {
                   options = list(pageLength = 25, scrollX = TRUE,
                                  dom = "Bfrtip", buttons = c("copy", "csv"),
                                  order = list(list(1, "desc"))))  # PRS desc
-  })
+  }
+  # Variants for the selected samples, from a given variant frame (raw or
+  # filtered_pre_group), with validation.
+  multi_variant_dt <- function(df, empty_msg) {
+    fids <- multi_samples()
+    validate(need(length(fids) > 0, "Pick cohort(s) or paste sample IDs above."))
+    validate(need(!is.null(df), "No variant data loaded."))
+    d <- df[as.character(df$family_id) %in% fids, , drop = FALSE]
+    validate(need(nrow(d) > 0, empty_msg))
+    build_multi_dt(d)
+  }
+
+  # Filtered = variants passing the global variant filters (sample-group ticks
+  # ignored, like the single-sample view); All = every variant, ignoring filters.
+  output$multi_table_filtered <- DT::renderDT(
+    multi_variant_dt(filtered_pre_group(),
+                     "No variants for the selected samples pass the current filters."))
+  output$multi_table <- DT::renderDT(
+    multi_variant_dt(raw(), "None of the selected samples carry variants."))
 
   build_sample_dt <- function(d) {
     tbl <- d %>%
