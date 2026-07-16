@@ -842,8 +842,8 @@ ui <- function(request) page_sidebar(
                      " — summary charts of the variants currently filtered in."),
             tab_item("table", "Variant table",
                      " — every filtered variant in a searchable, sortable table."),
-            tab_item("graph-up", "Score scatter",
-                     " — CADD vs REVEL, to spot variants high on both."),
+            tab_item("graph-up", "Plots",
+                     " — CADD-vs-REVEL scatter, the pathway map and PRS comparisons."),
             tab_item("star-fill", "Priority variants",
                      " — the strongest candidates, with a plain-English reason."),
             tab_item("card-list", "Gene summary",
@@ -993,15 +993,72 @@ ui <- function(request) page_sidebar(
     ),
 
     nav_panel(
-      "Score scatter",
+      "Plots",
       icon = bsicons::bs_icon("graph-up"),
-      card(
-        card_header(
-          "CADD vs REVEL — hover for variant detail",
-          downloadButton("dl_scatter", "Download PNG",
-                         class = "btn-sm btn-primary float-end")
+      navset_tab(
+        nav_panel(
+          "Score scatter",
+          card(
+            card_header(
+              "CADD vs REVEL — hover for variant detail",
+              downloadButton("dl_scatter", "Download PNG",
+                             class = "btn-sm btn-primary float-end")
+            ),
+            plotly::plotlyOutput("scatter", height = 600)
+          )
         ),
-        plotly::plotlyOutput("scatter", height = 600)
+        nav_panel(
+          "Pathway map",
+          card(
+            card_header(
+              "Priority variants across metabolic pathways",
+              tags$span(bsicons::bs_icon("info-circle"),
+                        " one dot per priority variant (≥ 1 flag); ",
+                        "edit data/pathways.tsv to change the lanes or genes",
+                        class = "text-muted small ms-2"),
+              downloadButton("dl_pathway", "Download PNG",
+                             class = "btn-sm btn-primary float-end")
+            ),
+            plotOutput("p_pathway", height = 640)
+          )
+        ),
+        nav_panel(
+          "PRS integration",
+          div(
+            tags$p(class = "text-muted small mt-2",
+                   bsicons::bs_icon("info-circle"),
+                   " Compare the sentinel MacTel PRS across custom groups. Each group is ",
+                   "defined by sample criteria (cohort and/or a manual sample list) and, ",
+                   "optionally, whether samples carry variants matching a filter (gene / CADD ",
+                   "/ VEP impact / REVEL / ClinVar). Absent variant = negative (WGS samples)."),
+            card(
+              card_header("Group builder"),
+              div(class = "d-flex flex-wrap align-items-end gap-4 mb-3",
+                  div(style = "width:150px;",
+                      numericInput("prs_ngroups", "Number of groups",
+                                   value = 2, min = 2, max = 6, step = 1)),
+                  radioButtons("prs_yaxis", "Y-axis",
+                               choices = c("Z-score" = "Z", "Raw PRS" = "raw"),
+                               selected = "Z", inline = TRUE),
+                  actionButton("prs_go", tagList(bsicons::bs_icon("play-fill"), " Generate"),
+                               class = "btn btn-primary")),
+              div(class = "mb-2",
+                  checkboxInput("prs_complement",
+                                "Group 2 = the other half of Group 1 (same samples, opposite variant filter) — 2 groups only",
+                                value = FALSE)),
+              uiOutput("prs_group_defs")
+            ),
+            card(
+              card_header(
+                "PRS by group",
+                downloadButton("prs_dl", "Download PNG",
+                               class = "btn-sm btn-primary float-end")
+              ),
+              plotOutput("prs_box", height = 460),
+              tableOutput("prs_ttests")
+            )
+          )
+        )
       )
     ),
 
@@ -1047,90 +1104,78 @@ ui <- function(request) page_sidebar(
     ),
 
     nav_panel(
-      "Pathway map",
-      icon = bsicons::bs_icon("diagram-3"),
-      card(
-        card_header(
-          "Priority variants across metabolic pathways",
-          tags$span(bsicons::bs_icon("info-circle"),
-                    " one dot per priority variant (≥ 1 flag); ",
-                    "edit data/pathways.tsv to change the lanes or genes",
-                    class = "text-muted small ms-2"),
-          downloadButton("dl_pathway", "Download PNG",
-                         class = "btn-sm btn-primary float-end")
-        ),
-        plotOutput("p_pathway", height = 640)
-      )
-    ),
-
-    nav_panel(
       "Sample explorer",
       icon = bsicons::bs_icon("person-lines-fill"),
-      div(
-        # The sample picker sits in a compact header strip directly under the
-        # tab bar (rather than a left sidebar), so the content below can use the
-        # full width instead of leaving a tall empty column.
-        div(
-          class = "mb-3",
-          style = "min-width: 280px; max-width: 360px;",
-          selectizeInput("sample_pick", "Select a sample", width = "100%",
-                         choices = NULL, multiple = FALSE,
-                         options = list(placeholder = "Start typing a sample ID…"))
+      navset_tab(
+        id = "sample_subtabs",
+        nav_panel(
+          "Individual sample",
+          div(
+            # Compact picker strip under the sub-tab bar.
+            div(
+              class = "mb-3",
+              style = "min-width: 280px; max-width: 360px;",
+              selectizeInput("sample_pick", "Select a sample", width = "100%",
+                             choices = NULL, multiple = FALSE,
+                             options = list(placeholder = "Start typing a sample ID…"))
+            ),
+            uiOutput("sample_tags"),
+            card(
+              card_header(
+                "Filtered / prioritised variants",
+                tags$span(bsicons::bs_icon("info-circle"),
+                          " variants for this sample that pass the global filters",
+                          class = "text-muted small ms-2")
+              ),
+              DT::DTOutput("sample_table_priority")
+            ),
+            card(
+              card_header(
+                textOutput("sample_header"),
+                tags$span(bsicons::bs_icon("info-circle"),
+                          " every variant this sample carries, ignoring filters",
+                          class = "text-muted small ms-2"),
+                downloadButton("dl_sample", "Download CSV",
+                               class = "btn-sm btn-primary float-end")
+              ),
+              DT::DTOutput("sample_table_all")
+            ),
+            card(
+              card_header(
+                "IGV report",
+                tags$span(bsicons::bs_icon("info-circle"),
+                          " read-level view of every variant this sample carries ",
+                          "(requires an internet connection)",
+                          class = "text-muted small ms-2")
+              ),
+              uiOutput("sample_igv")
+            )
+          )
         ),
-        # Multi-sample filter: view several individuals' variants at once (with
-        # PRS), by cohort or a pasted / looked-up sample list. Independent of the
-        # single-sample picker and the sidebar filters.
-        card(
-          card_header(
-            "Compare samples — cohort or sample list",
-            tags$span(bsicons::bs_icon("info-circle"),
-                      " variants for the selected individuals, annotated with PRS; ",
-                      "a pasted list overrides the cohort selection",
-                      class = "text-muted small ms-2")),
-          layout_columns(
-            col_widths = c(5, 7),
-            selectizeInput("multi_cohort", "Cohort(s)", width = "100%",
-                           choices = names(COHORT_SETS), multiple = TRUE,
-                           options = list(placeholder = "e.g. MacTel, HSAN1")),
-            selectizeInput("multi_list", "…or paste / look up samples", width = "100%",
-                           choices = NULL, multiple = TRUE,
-                           options = list(
-                             placeholder = "paste AIDs / IDs (comma or space separated)",
-                             create = TRUE, delimiter = ","))),
-          uiOutput("multi_summary"),
-          DT::DTOutput("multi_table")
-        ),
-        div(
-          uiOutput("sample_tags"),
+        nav_panel(
+          "Compare samples",
+          # View several individuals' variants at once (with PRS), by cohort or a
+          # pasted / looked-up sample list. Independent of the single-sample
+          # picker and the sidebar filters.
           card(
             card_header(
-              "Filtered / prioritised variants",
+              "Compare samples — cohort or sample list",
               tags$span(bsicons::bs_icon("info-circle"),
-                        " variants for this sample that pass the global filters",
-                        class = "text-muted small ms-2")
-            ),
-            DT::DTOutput("sample_table_priority")
-          ),
-          card(
-            card_header(
-              textOutput("sample_header"),
-              tags$span(bsicons::bs_icon("info-circle"),
-                        " every variant this sample carries, ignoring filters",
-                        class = "text-muted small ms-2"),
-              downloadButton("dl_sample", "Download CSV",
-                             class = "btn-sm btn-primary float-end")
-            ),
-            DT::DTOutput("sample_table_all")
-          ),
-          card(
-            card_header(
-              "IGV report",
-              tags$span(bsicons::bs_icon("info-circle"),
-                        " read-level view of every variant this sample carries ",
-                        "(requires an internet connection)",
-                        class = "text-muted small ms-2")
-            ),
-            uiOutput("sample_igv")
+                        " variants for the selected individuals, annotated with PRS; ",
+                        "a pasted list overrides the cohort selection",
+                        class = "text-muted small ms-2")),
+            layout_columns(
+              col_widths = c(5, 7),
+              selectizeInput("multi_cohort", "Cohort(s)", width = "100%",
+                             choices = names(COHORT_SETS), multiple = TRUE,
+                             options = list(placeholder = "e.g. MacTel, HSAN1")),
+              selectizeInput("multi_list", "…or paste / look up samples", width = "100%",
+                             choices = NULL, multiple = TRUE,
+                             options = list(
+                               placeholder = "paste AIDs / IDs (comma or space separated)",
+                               create = TRUE, delimiter = ","))),
+            uiOutput("multi_summary"),
+            DT::DTOutput("multi_table")
           )
         )
       )
@@ -1214,47 +1259,6 @@ ui <- function(request) page_sidebar(
                   class = "btn btn-primary"),
                 uiOutput("anno_sample_status", inline = TRUE))
           )
-        )
-      )
-    ),
-
-    nav_panel(
-      "PRS integration",
-      icon = bsicons::bs_icon("bar-chart-steps"),
-      div(
-        tags$p(class = "text-muted small mt-2",
-               bsicons::bs_icon("info-circle"),
-               " Compare the sentinel MacTel PRS across custom groups. Each group is ",
-               "defined by sample criteria (cohort and/or a manual sample list) and, ",
-               "optionally, whether samples carry variants matching a filter (gene / CADD ",
-               "/ VEP impact / REVEL / ClinVar). Absent variant = negative (WGS samples)."),
-        card(
-          card_header("Group builder"),
-          # Controls in a full-width strip above the group creator so the group
-          # blocks below get the full window width.
-          div(class = "d-flex flex-wrap align-items-end gap-4 mb-3",
-              div(style = "width:150px;",
-                  numericInput("prs_ngroups", "Number of groups",
-                               value = 2, min = 2, max = 6, step = 1)),
-              radioButtons("prs_yaxis", "Y-axis",
-                           choices = c("Z-score" = "Z", "Raw PRS" = "raw"),
-                           selected = "Z", inline = TRUE),
-              actionButton("prs_go", tagList(bsicons::bs_icon("play-fill"), " Generate"),
-                           class = "btn btn-primary")),
-          div(class = "mb-2",
-              checkboxInput("prs_complement",
-                            "Group 2 = the other half of Group 1 (same samples, opposite variant filter) — 2 groups only",
-                            value = FALSE)),
-          uiOutput("prs_group_defs")
-        ),
-        card(
-          card_header(
-            "PRS by group",
-            downloadButton("prs_dl", "Download PNG",
-                           class = "btn-sm btn-primary float-end")
-          ),
-          plotOutput("prs_box", height = 460),
-          tableOutput("prs_ttests")
         )
       )
     )
@@ -4114,6 +4118,7 @@ server <- function(input, output, session) {
                          choices = stats::setNames(fids, fmt_sample(fids)),
                          selected = fid, server = TRUE)
     bslib::nav_select("main_tabs", "Sample explorer")
+    bslib::nav_select("sample_subtabs", "Individual sample", session = session)
   })
 
   # Clicking a Family_ID badge -> remember the family, sync the dropdown, and
