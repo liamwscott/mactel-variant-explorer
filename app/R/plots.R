@@ -467,8 +467,11 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
     ggplot2::scale_colour_manual(values = COL_CLNSIG, drop = TRUE,
                                  name = "ClinVar") +
     (if (!single_sample)
-       ggplot2::scale_size_continuous(range = c(2.5, 7), name = "MacTel/HSAN1",
-                                      breaks = scales::breaks_pretty(4))) +
+       ggplot2::scale_size_continuous(
+         range = c(2.5, 7), name = "Carriers",
+         # integer breaks only — fractional carrier counts make no sense
+         breaks = function(x) { b <- unique(round(scales::breaks_pretty(4)(x)))
+                                b[b >= 1] })) +
     (if (show_novel)
        ggplot2::scale_shape_manual(
          values = c("FALSE" = 16, "TRUE" = 17),
