@@ -376,7 +376,7 @@ aa_position <- function(hgvsp) {
 plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
                                   label_all = FALSE, italic_gene = FALSE,
                                   threshold = 20, novel_keys = character(0),
-                                  mark_novel = FALSE) {
+                                  mark_novel = FALSE, affected_ids = NULL) {
   v <- gene_df %>%
     dplyr::mutate(
       aa  = aa_position(HGVSp_short),
@@ -385,15 +385,23 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
     dplyr::filter(!is.na(aa), !is.na(CADD))
   if (nrow(v) == 0) return(NULL)
 
-  # one lollipop per distinct variant; size by number of carriers
+  # Dot size counts only "affected" carriers (MacTel or HSAN1); controls still
+  # appear in the total and on click but do not inflate the dot. When
+  # affected_ids is not supplied, every carrier counts (backwards compatible).
+  aff <- if (is.null(affected_ids)) unique(as.character(v$family_id))
+         else as.character(affected_ids)
+
+  # one lollipop per distinct variant
   vv <- v %>%
     dplyr::group_by(key, aa, CADD, CLNSIG_clean, HGVSp_short) %>%
-    dplyr::summarise(n_carriers = dplyr::n_distinct(family_id),
-                     .groups = "drop") %>%
+    dplyr::summarise(
+      n_carriers = dplyr::n_distinct(family_id),
+      n_affected = dplyr::n_distinct(family_id[as.character(family_id) %in% aff]),
+      .groups = "drop") %>%
     dplyr::mutate(tooltip = sprintf(
-      "%s\nposition %d\nCADD %.1f\nClinVar: %s\nsamples: %d",
+      "%s\nposition %d\nCADD %.1f\nClinVar: %s\ncarriers: %d (%d MacTel/HSAN1)",
       ifelse(is.na(HGVSp_short), "(no HGVSp)", HGVSp_short),
-      aa, CADD, as.character(CLNSIG_clean), n_carriers))
+      aa, CADD, as.character(CLNSIG_clean), n_carriers, n_affected))
 
   # Variants flagged "novel for MacTel" are drawn as triangles when the toggle
   # is on. novel_keys use the CHROM||POS||REF||ALT form; vv$key is the
@@ -401,9 +409,9 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
   vv$is_novel <- vv$key %in% gsub("||", " ", novel_keys, fixed = TRUE)
   show_novel   <- isTRUE(mark_novel) && any(vv$is_novel)
 
-  # When every variant is seen in exactly one sample the size channel carries
-  # no information, so drop it (fixed dot size, no "Samples" legend).
-  single_sample <- all(vv$n_carriers == 1)
+  # When no variant has more than one affected (MacTel/HSAN1) carrier the size
+  # channel carries no information, so drop it (fixed dot size, no size legend).
+  single_sample <- all(vv$n_affected <= 1)
 
   prot_len <- if (!is.null(dom_df) && nrow(dom_df) > 0)
     suppressWarnings(max(dom_df$Protein_Length, na.rm = TRUE)) else NA_real_
@@ -429,8 +437,8 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
       ggplot2::scale_fill_brewer(palette = "Set2", name = "Pfam domain")
   }
 
-  # Point aesthetic: colour is always ClinVar; size is carriers unless every
-  # variant is a singleton; shape splits known vs novel only when marking novel.
+  # Point aesthetic: colour is always ClinVar; size is affected carriers unless
+  # uninformative; shape splits known vs novel only when marking novel.
   point_aes <- if (single_sample) {
     if (show_novel)
       ggplot2::aes(x = aa, y = CADD, colour = CLNSIG_clean, shape = is_novel,
@@ -440,10 +448,10 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
                    text = tooltip, key = key)
   } else {
     if (show_novel)
-      ggplot2::aes(x = aa, y = CADD, colour = CLNSIG_clean, size = n_carriers,
+      ggplot2::aes(x = aa, y = CADD, colour = CLNSIG_clean, size = n_affected,
                    shape = is_novel, text = tooltip, key = key)
     else
-      ggplot2::aes(x = aa, y = CADD, colour = CLNSIG_clean, size = n_carriers,
+      ggplot2::aes(x = aa, y = CADD, colour = CLNSIG_clean, size = n_affected,
                    text = tooltip, key = key)
   }
 
@@ -459,7 +467,7 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
     ggplot2::scale_colour_manual(values = COL_CLNSIG, drop = TRUE,
                                  name = "ClinVar") +
     (if (!single_sample)
-       ggplot2::scale_size_continuous(range = c(2.5, 7), name = "Samples",
+       ggplot2::scale_size_continuous(range = c(2.5, 7), name = "MacTel/HSAN1",
                                       breaks = scales::breaks_pretty(4))) +
     (if (show_novel)
        ggplot2::scale_shape_manual(
@@ -524,7 +532,7 @@ plot_variant_lollipop <- function(gene_df, dom_df, gene, sel_key = NULL,
                  else sprintf("%s protein lollipop", gene),
       subtitle = sprintf("%g aa | height = CADD (dashed = %g) | colour = ClinVar%s%s",
                          prot_len, threshold,
-                         if (single_sample) "" else " | size = #samples",
+                         if (single_sample) "" else " | size = #MacTel/HSAN1 carriers",
                          if (show_novel) " | triangle = novel for MacTel" else ""),
       x = "Amino-acid position", y = "CADD") +
     theme_app()

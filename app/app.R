@@ -346,6 +346,12 @@ MACTEL_OF <- if (!is.null(SAMPLE_INFO) &&
   stats::setNames(as.logical(SAMPLE_INFO$is_mactel),
                   as.character(SAMPLE_INFO$family_id)) else logical(0)
 
+# family_ids that are "affected" (MacTel or HSAN1) — used to size lollipop dots
+# by affected carriers only (controls still appear on hover/click).
+AFFECTED_IDS <- if (!is.null(SAMPLE_INFO) &&
+                    all(c("is_mactel", "is_hsan1") %in% names(SAMPLE_INFO)))
+  as.character(SAMPLE_INFO$family_id[SAMPLE_INFO$is_mactel | SAMPLE_INFO$is_hsan1]) else NULL
+
 # family_id -> sentinel PRS (raw and Z), for the PRS integration tab.
 PRS_OF  <- if (!is.null(SAMPLE_INFO) && "PRS" %in% names(SAMPLE_INFO))
   stats::setNames(as.numeric(SAMPLE_INFO$PRS),   as.character(SAMPLE_INFO$family_id)) else numeric(0)
@@ -3752,7 +3758,7 @@ server <- function(input, output, session) {
                                         italic_gene = TRUE,
                                         threshold = input$priority_cadd %||% 20,
                                         novel_keys = novel_keys(),
-                                        mark_novel = isTRUE(input$lollipop_novel_shape %||% TRUE)),
+                                        mark_novel = isTRUE(input$lollipop_novel_shape %||% TRUE), affected_ids = AFFECTED_IDS),
                   error = function(e) NULL)
     plot_html <- "<p class='muted'>No protein-coding positions to plot for this gene.</p>"
     if (!is.null(p)) {
@@ -3979,7 +3985,7 @@ server <- function(input, output, session) {
     p <- plot_variant_lollipop(gdf, ddf, gene, sel_key,
                                threshold = input$priority_cadd %||% 20,
                                novel_keys = novel_keys(),
-                               mark_novel = isTRUE(input$lollipop_novel_shape %||% TRUE))
+                               mark_novel = isTRUE(input$lollipop_novel_shape %||% TRUE), affected_ids = AFFECTED_IDS)
     validate(need(!is.null(p),
                   "No protein-coding (amino-acid) positions to plot for this gene."))
     gg <- plotly::ggplotly(p, tooltip = "text", source = "lollipop") %>%
@@ -4032,7 +4038,7 @@ server <- function(input, output, session) {
                                           italic_gene = TRUE,
                                           threshold = input$priority_cadd %||% 20,
                                           novel_keys = novel_keys(),
-                                          mark_novel = isTRUE(input$lollipop_novel_shape %||% TRUE)),
+                                          mark_novel = isTRUE(input$lollipop_novel_shape %||% TRUE), affected_ids = AFFECTED_IDS),
                     error = function(e) NULL)
       req(!is.null(p))
       # Wrap long domain names so the legend grows in height, not width (keeps
