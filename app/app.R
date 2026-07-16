@@ -3125,8 +3125,7 @@ server <- function(input, output, session) {
     p <- ggplot2::ggplot(d, ggplot2::aes(group, y, fill = group)) +
       { if (yc == "Z") ggplot2::geom_hline(yintercept = 0, linetype = "dashed",
                                            colour = "grey60") } +
-      ggplot2::geom_boxplot(width = 0.6, outlier.shape = NA, alpha = 0.85) +
-      ggplot2::geom_jitter(width = 0.12, size = 1.3, alpha = 0.5) +
+      ggplot2::geom_boxplot(width = 0.6, alpha = 0.85, outlier.size = 1.3) +
       ggplot2::scale_x_discrete(labels = lab) +
       ggplot2::scale_fill_brewer(palette = "Set2", guide = "none") +
       ggplot2::labs(title = "PRS by group", subtitle = subtitle,
