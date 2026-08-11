@@ -2089,12 +2089,15 @@ server <- function(input, output, session) {
                   filter = "top", rownames = FALSE,
                   selection = "none", escape = FALSE,
                   extensions = "Buttons",
-                  # Fill the vertical window: the table body scrolls to near the
-                  # bottom of the viewport (scrollCollapse shrinks it back when
-                  # there are only a few rows, so no empty gap).
+                  # Make the table body scroll within a viewport-relative height
+                  # so it stretches to the bottom of the window (instead of
+                  # sitting content-sized in the top half). The height is a live
+                  # `vh` calc, so it re-flows automatically when the window is
+                  # resized. The 700px offset is the fixed chrome above the body
+                  # (title bar + KPI cards + tabs + toolbar + column filters) plus
+                  # the info/pagination footer below it.
                   options = list(pageLength = 100, scrollX = TRUE,
-                                 scrollY = "calc(100vh - 330px)",
-                                 scrollCollapse = TRUE,
+                                 scrollY = "calc(100vh - 700px)",
                                  order = order_desc_by(dt, "CADD"),
                                  dom = "Bfrtip", buttons = c("copy", "csv"),
                                  headerCallback = header_tips_cb())) %>%
