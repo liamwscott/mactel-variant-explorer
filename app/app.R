@@ -2977,6 +2977,10 @@ server <- function(input, output, session) {
     genes <- if (!is.null(raw())) sort(unique(as.character(raw()$SYMBOL))) else character(0)
     samp_choices <- stats::setNames(prs_universe, fmt_sample(prs_universe))
     cadd_max <- if (!is.null(raw())) ceiling(max(raw()$CADD, na.rm = TRUE)) else 60
+    # PRS (Z) range for the per-group sample filter
+    zvals <- PRSZ_OF[!is.na(PRSZ_OF)]
+    zlo <- if (length(zvals)) floor(min(zvals) * 10) / 10   else -3
+    zhi <- if (length(zvals)) ceiling(max(zvals) * 10) / 10 else  5
 
     block <- function(g) {
       id <- function(x) paste0("prs_g", g, "_", x)
@@ -2995,6 +2999,10 @@ server <- function(input, output, session) {
         selectizeInput(id("samples"), NULL, choices = samp_choices, multiple = TRUE,
                        width = "100%",
                        options = list(placeholder = "…or pick specific samples")),
+        div(style = "max-width:420px;",
+            sliderInput(id("prs"), "PRS (Z) range — combined with the above",
+                        min = zlo, max = zhi, value = c(zlo, zhi), step = 0.1,
+                        width = "100%")),
         div(class = "d-flex align-items-center gap-2 mt-1",
             tags$span(class = "text-muted small",
                       "Variant criteria (optional) — combine filters with"),
@@ -3055,6 +3063,12 @@ server <- function(input, output, session) {
       } else prs_universe
       if (length(man)) S <- intersect(S, man)
       S <- intersect(S, prs_universe)
+      # PRS (Z) range filter, combined (AND) with the cohort/sample selection.
+      pr <- get(g, "prs")
+      if (length(pr) == 2) {
+        inrange <- names(PRSZ_OF)[!is.na(PRSZ_OF) & PRSZ_OF >= pr[1] & PRSZ_OF <= pr[2]]
+        S <- intersect(S, inrange)
+      }
       # variant criteria — each set filter is a condition; combine per variant_op.
       genes  <- get(g, "genes"); cadd <- get(g, "cadd") %||% 0
       revel  <- get(g, "revel") %||% 0
