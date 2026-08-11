@@ -358,6 +358,10 @@ PRS_OF  <- if (!is.null(SAMPLE_INFO) && "PRS" %in% names(SAMPLE_INFO))
 PRSZ_OF <- if (!is.null(SAMPLE_INFO) && "PRS_Z" %in% names(SAMPLE_INFO))
   stats::setNames(as.numeric(SAMPLE_INFO$PRS_Z), as.character(SAMPLE_INFO$family_id)) else numeric(0)
 HAS_PRS <- length(PRS_OF) > 0 && any(!is.na(PRS_OF))
+# Observed PRS (Z) range, for the sidebar PRS slider bounds.
+PRS_ZRANGE <- if (HAS_PRS && any(!is.na(PRSZ_OF))) {
+  r <- range(PRSZ_OF, na.rm = TRUE); c(floor(r[1] * 10) / 10, ceiling(r[2] * 10) / 10)
+} else c(-3, 5)
 
 # Cohort -> family_ids, from the sample-sheet flags. Shared by the PRS tab and
 # the Sample explorer multi-sample filter. Empty cohorts are dropped.
@@ -705,6 +709,14 @@ ui <- function(request) page_sidebar(
         checkboxGroupInput("sample_group", "Sample group",
                            choices = c("MacTel", "HSAN1", "Controls"),
                            selected = "MacTel", inline = TRUE),
+        if (HAS_PRS) tagList(
+          sliderInput("prs_range", "PRS (Z) filter",
+                      min = PRS_ZRANGE[1], max = PRS_ZRANGE[2],
+                      value = PRS_ZRANGE, step = 0.1),
+          helpText(class = "small text-muted mt-n2",
+                   "Keep only samples whose PRS falls in this band ",
+                   "(combined with Sample group). Samples with no PRS drop out ",
+                   "once the range is narrowed.")),
         selectizeInput("exclude_samples", "Exclude samples",
                        choices = NULL, multiple = TRUE,
                        options = list(placeholder = "None excluded")),
@@ -1621,6 +1633,16 @@ server <- function(input, output, session) {
         (("HSAN1"    %in% sel) & SAMPLE_INFO$is_hsan1)   |
         (("Controls" %in% sel) & SAMPLE_INFO$is_control)]
       df <- dplyr::filter(df, family_id %in% allowed)
+    }
+
+    # PRS (Z) filter — keep only samples whose PRS is in the sidebar band. Only
+    # applied once the slider is narrowed from the full range (so samples with
+    # no PRS are not dropped by default).
+    pr <- input$prs_range
+    if (HAS_PRS && length(pr) == 2 &&
+        (pr[1] > PRS_ZRANGE[1] || pr[2] < PRS_ZRANGE[2])) {
+      keep <- names(PRSZ_OF)[!is.na(PRSZ_OF) & PRSZ_OF >= pr[1] & PRSZ_OF <= pr[2]]
+      df <- dplyr::filter(df, family_id %in% keep)
     }
 
     # priority flags
@@ -2977,10 +2999,6 @@ server <- function(input, output, session) {
     genes <- if (!is.null(raw())) sort(unique(as.character(raw()$SYMBOL))) else character(0)
     samp_choices <- stats::setNames(prs_universe, fmt_sample(prs_universe))
     cadd_max <- if (!is.null(raw())) ceiling(max(raw()$CADD, na.rm = TRUE)) else 60
-    # PRS (Z) range for the per-group sample filter
-    zvals <- PRSZ_OF[!is.na(PRSZ_OF)]
-    zlo <- if (length(zvals)) floor(min(zvals) * 10) / 10   else -3
-    zhi <- if (length(zvals)) ceiling(max(zvals) * 10) / 10 else  5
 
     block <- function(g) {
       id <- function(x) paste0("prs_g", g, "_", x)
@@ -2999,10 +3017,6 @@ server <- function(input, output, session) {
         selectizeInput(id("samples"), NULL, choices = samp_choices, multiple = TRUE,
                        width = "100%",
                        options = list(placeholder = "…or pick specific samples")),
-        div(style = "max-width:420px;",
-            sliderInput(id("prs"), "PRS (Z) range — combined with the above",
-                        min = zlo, max = zhi, value = c(zlo, zhi), step = 0.1,
-                        width = "100%")),
         div(class = "d-flex align-items-center gap-2 mt-1",
             tags$span(class = "text-muted small",
                       "Variant criteria (optional) — combine filters with"),
@@ -3063,12 +3077,6 @@ server <- function(input, output, session) {
       } else prs_universe
       if (length(man)) S <- intersect(S, man)
       S <- intersect(S, prs_universe)
-      # PRS (Z) range filter, combined (AND) with the cohort/sample selection.
-      pr <- get(g, "prs")
-      if (length(pr) == 2) {
-        inrange <- names(PRSZ_OF)[!is.na(PRSZ_OF) & PRSZ_OF >= pr[1] & PRSZ_OF <= pr[2]]
-        S <- intersect(S, inrange)
-      }
       # variant criteria — each set filter is a condition; combine per variant_op.
       genes  <- get(g, "genes"); cadd <- get(g, "cadd") %||% 0
       revel  <- get(g, "revel") %||% 0
