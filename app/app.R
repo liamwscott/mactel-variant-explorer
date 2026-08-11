@@ -2089,7 +2089,12 @@ server <- function(input, output, session) {
                   filter = "top", rownames = FALSE,
                   selection = "none", escape = FALSE,
                   extensions = "Buttons",
-                  options = list(pageLength = 25, scrollX = TRUE,
+                  # Fill the vertical window: the table body scrolls to near the
+                  # bottom of the viewport (scrollCollapse shrinks it back when
+                  # there are only a few rows, so no empty gap).
+                  options = list(pageLength = 100, scrollX = TRUE,
+                                 scrollY = "calc(100vh - 330px)",
+                                 scrollCollapse = TRUE,
                                  order = order_desc_by(dt, "CADD"),
                                  dom = "Bfrtip", buttons = c("copy", "csv"),
                                  headerCallback = header_tips_cb())) %>%
